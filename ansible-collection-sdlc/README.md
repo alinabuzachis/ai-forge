@@ -36,13 +36,19 @@ lola install ansible-collection-sdlc -a opencode
 - **commit** - Create conventional commits with FQCN scopes for Ansible collection content
 - **create-branch** - Create feature branches following project conventions with proper fork workflow setup
 - **create-pr** - Create draft pull requests with pre-flight checks, changelog validation, and automated formatting
+- **docs-generate** - Generate module documentation and update README using collection_prep
 - **implement-sonarcloud-fixes** - Implement fixes for SonarCloud issues with testing and PR creation
+- **next-release** - Calculate next patch/minor/major release versions for version_added tags following SemVer
 - **pr-review** - Review PRs against project standards and the Ansible Collection Review Checklist
 - **release** - Guide collection releases with automatic version detection from changelog fragments
 - **remove-deprecations** - Find and remediate overdue deprecation warnings with guided removal workflow
 - **run-tests** - Run and write sanity, unit, and integration tests using ansible-test
+- **sanity** - Run Ansible sanity tests with smart change detection (fast, targeted testing)
 - **sonarcloud-analysis** - Fetch and analyse SonarCloud issues for projects or pull requests
-- **next-release** - Calculate next patch/minor/major release versions for version_added tags following SemVer
+- **stable-release** - Guide releases from stable-X branches with SemVer calculation from changelog fragments
+- **stable-release-analyze** - Analyze stable branches for pending releases and calculate versions
+- **stable-release-prep** - Prepare release branch with changelog generation and version updates
+- **tox-lint** - Run all configured tox linters (black, isort, flake8, pylint, ansible-lint, ruff)
 
 #### Helper Skills
 
