@@ -28,6 +28,30 @@ lola install ansible-collection-sdlc -a gemini-cli
 lola install ansible-collection-sdlc -a opencode
 ```
 
+## Configuration (Optional)
+
+Skills work with sensible defaults. For customization, create a configuration file:
+
+```bash
+# Copy the template
+cp ansible-release.conf.template ~/.ansible-release.conf
+
+# Edit with your preferences
+vim ~/.ansible-release.conf
+
+# Source before using skills (or add to your shell profile)
+source ~/.ansible-release.conf
+```
+
+Available configuration options:
+- `ANSIBLE_COLLECTIONS_PATH` - Where collections are stored
+- `GITHUB_USERNAME` - Your GitHub username for PRs
+- `SANITY_MODE` - Default sanity test mode (smart/full/changed-only)
+- `AUTO_CREATE_PR` - Automatically create PRs (true/false/prompt)
+- Collection-specific overrides (e.g., `amazon_aws_SANITY_MODE`)
+
+See `ansible-release.conf.template` for all options and documentation.
+
 ## Components
 
 ### Skills
