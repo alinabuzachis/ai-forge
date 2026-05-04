@@ -123,6 +123,7 @@ fi
 **CRITICAL**: Use compatible ansible-core and Python versions.
 
 Check ansible-core/Python support matrix:
+
 - ansible-core 2.17: Python 3.10, 3.11, 3.12
 - ansible-core 2.18: Python 3.10, 3.11, 3.12
 - ansible-core 2.19: Python 3.10, 3.11, 3.12
@@ -180,10 +181,10 @@ Fix these issues and re-run
 
 Example: amazon.aws collection (389 modules)
 
-| Mode | Files Tested | Tests Run | Time |
-|------|--------------|-----------|------|
-| smart (2 files changed) | 2 | 5 tests × 2 | 0:45 |
-| full | 389 | 5 tests × 389 | 12:30 |
+| Mode                    | Files Tested | Tests Run       | Time  |
+|-------------------------|--------------|-----------------|-------|
+| smart (2 files changed) | 2            | 5 tests × 2     | 0:45  |
+| full                    | 389          | 5 tests × 389   | 12:30 |
 
 **Recommendation**: Use smart mode for 95% of cases, full mode before major releases.
 
@@ -242,6 +243,7 @@ git diff --name-only origin/main..HEAD | grep plugins/
 ## Integration
 
 This skill integrates with:
+
 - `tox-lint` - Run alongside linters
 - `stable-release` - Part of release workflow (quality checks)
 - `run-tests` - Sanity is one type of test
@@ -249,7 +251,7 @@ This skill integrates with:
 ## When to Use Each Mode
 
 | Mode | Use Case | Time | Coverage |
-|------|----------|------|----------|
+| --- | --- | --- | --- |
 | **smart** | Daily development, PRs | ~1 min | Changed files only |
 | **full** | Major releases, main branch | ~10 min | All files |
 | **changed-only** | Backports, specific branches | ~2 min | Custom range |

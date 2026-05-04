@@ -61,6 +61,7 @@ commands = collection_prep_add_docs -p .
 ### Module RST Files (docs/*.rst)
 
 One file per module with:
+
 - Module synopsis
 - Parameters documentation
 - Return values
@@ -130,6 +131,7 @@ plugins/
 ## Post-Generation Validation
 
 After running, verify:
+
 - ✅ `docs/` directory exists
 - ✅ One RST file per module (*.rst)
 - ✅ README.md has module list
@@ -139,6 +141,7 @@ After running, verify:
 ## Integration
 
 This skill is used by:
+
 - `stable-release` - Release orchestrator (generates docs before commit)
 - `release` - Standard release workflow
 

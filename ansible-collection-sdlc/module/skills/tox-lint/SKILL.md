@@ -74,6 +74,7 @@ tox -e linters
 ```
 
 This runs:
+
 - **ansible-lint**: Ansible best practices
 - **black-lint**: Python code formatting check
 - **isort-lint**: Import sorting check
@@ -95,6 +96,7 @@ fi
 ```
 
 **Why this is critical:**
+
 - Many Ansible collections only configure Python linters in tox
 - ansible-lint checks Ansible-specific issues like YAML indentation
 - CI often runs ansible-lint separately
@@ -183,6 +185,7 @@ tox -e ansible-lint
 ## Integration
 
 This skill integrates with:
+
 - `stable-release-prep` - Run after prep before commit
 - `sanity` - Run alongside sanity tests
 - `stable-release` - Part of full release workflow (quality checks)

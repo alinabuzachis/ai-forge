@@ -12,6 +12,7 @@ description: >-
 ## Purpose
 
 Analyze Ansible collection stable branches for pending releases. This skill:
+
 - Detects all stable-X branches
 - Counts unreleased commits since last tag
 - Analyzes changelog fragments to determine SemVer impact (MAJOR/MINOR/PATCH)
@@ -21,6 +22,7 @@ Analyze Ansible collection stable branches for pending releases. This skill:
 ## When to Invoke
 
 TRIGGER when:
+
 - A user asks to analyze pending releases
 - A user asks "which collections need releases?"
 - A user asks "what version should I release?"
@@ -28,6 +30,7 @@ TRIGGER when:
 - Planning release schedules
 
 DO NOT TRIGGER when:
+
 - Actually performing a release (use `release-prep` skill instead)
 - Reviewing a PR (use `pr-review` skill instead)
 - Running tests (use `run-tests` skill instead)
@@ -47,6 +50,7 @@ DO NOT TRIGGER when:
 ## Virtual Environment Management
 
 **CRITICAL**: This skill ALWAYS creates and uses a virtual environment to ensure:
+
 - ✅ Consistent dependency versions (PyYAML)
 - ✅ No global package pollution
 - ✅ Cross-platform compatibility
@@ -74,6 +78,7 @@ fi
 Replace `SKILL_DIR` with the directory containing this skill's scripts folder.
 
 **Verification**: Confirm Python packages are installed:
+
 ```bash
 source .venv/bin/activate && python3 -c "import yaml; print('PyYAML OK')"
 ```
@@ -81,6 +86,7 @@ source .venv/bin/activate && python3 -c "import yaml; print('PyYAML OK')"
 ### Step 2 — Determine collection path
 
 If collection name provided (e.g., `amazon.aws`):
+
 ```bash
 NAMESPACE=$(echo "COLLECTION" | cut -d. -f1)
 NAME=$(echo "COLLECTION" | cut -d. -f2)
@@ -88,6 +94,7 @@ COLLECTION_PATH="${ANSIBLE_COLLECTIONS_PATH:-$HOME/dev/collections/ansible_colle
 ```
 
 If in collection directory:
+
 ```bash
 COLLECTION_PATH=$(pwd)
 # Verify it's a collection
@@ -105,6 +112,7 @@ source .venv/bin/activate && \
 ```
 
 The script will:
+
 1. Read `galaxy.yml` to extract collection metadata
 2. Fetch and sync with upstream remote
 3. Detect all `stable-X` branches
@@ -121,30 +129,38 @@ The script will:
 
 The script outputs color-coded results:
 
-**✅ Green: RELEASE NEEDED**
+#### ✅ Green: RELEASE NEEDED
+
 ```
 ✅ stable-1: 1.0.0 → 1.0.1 (PATCH)
    Commits: 14, Fragments: 1
    20260122-devopsguru-notification_channel.yml
 ```
+
 Action: Proceed with `/release-prep --version 1.0.1 --branch stable-1`
 
-**✓ Blue: UP TO DATE**
+#### ✓ Blue: UP TO DATE
+
 ```
 ✓ stable-3: Up to date (3.5.0)
 ```
+
 Action: No release needed
 
-**⚠️ Yellow: COMMITS WITHOUT FRAGMENTS**
+#### ⚠️ Yellow: COMMITS WITHOUT FRAGMENTS
+
 ```
 ⚠️ stable-6: 8 commits but no changelog fragments
 ```
+
 Action: Add changelog fragments before releasing
 
-**❌ Red: ERROR**
+#### ❌ Red: ERROR
+
 ```
 ❌ stable-5: Failed to checkout branch
 ```
+
 Action: Investigate git/branch issues
 
 ### Step 5 — Analyze all collections (optional)
@@ -167,16 +183,16 @@ done
 
 Based on Ansible changelog fragment types:
 
-| Fragment Type | Impact | Version Bump | Example |
-|--------------|--------|--------------|---------|
-| `breaking_changes` | **MAJOR** | X.0.0 | 1.2.3 → 2.0.0 |
-| `removed_features` | **MAJOR** | X.0.0 | 1.2.3 → 2.0.0 |
-| `major_changes` | **MINOR** | x.Y.0 | 1.2.3 → 1.3.0 |
-| `minor_changes` | **MINOR** | x.Y.0 | 1.2.3 → 1.3.0 |
-| `deprecated_features` | **MINOR** | x.Y.0 | 1.2.3 → 1.3.0 |
-| `bugfixes` | **PATCH** | x.y.Z | 1.2.3 → 1.2.4 |
-| `security_fixes` | **PATCH** | x.y.Z | 1.2.3 → 1.2.4 |
-| `trivial` | **PATCH** | x.y.Z | 1.2.3 → 1.2.4 |
+| Fragment Type         | Impact     | Version Bump | Example           |
+|-----------------------|------------|--------------|-------------------|
+| `breaking_changes`    | **MAJOR**  | X.0.0        | 1.2.3 → 2.0.0     |
+| `removed_features`    | **MAJOR**  | X.0.0        | 1.2.3 → 2.0.0     |
+| `major_changes`       | **MINOR**  | x.Y.0        | 1.2.3 → 1.3.0     |
+| `minor_changes`       | **MINOR**  | x.Y.0        | 1.2.3 → 1.3.0     |
+| `deprecated_features` | **MINOR**  | x.Y.0        | 1.2.3 → 1.3.0     |
+| `bugfixes`            | **PATCH**  | x.y.Z        | 1.2.3 → 1.2.4     |
+| `security_fixes`      | **PATCH**  | x.y.Z        | 1.2.3 → 1.2.4     |
+| `trivial`             | **PATCH**  | x.y.Z        | 1.2.3 → 1.2.4     |
 
 **Rule**: The highest impact across all fragments determines the bump.
 
@@ -212,6 +228,7 @@ export REMOTE_UPSTREAM="upstream"
 ### "PyYAML is required but not installed"
 
 The venv setup should prevent this, but if it occurs:
+
 ```bash
 cd SKILL_DIR && source .venv/bin/activate && pip install pyyaml
 ```
@@ -227,6 +244,7 @@ git fetch upstream --tags
 ### "No stable branches found"
 
 Verify the collection uses `stable-X` branch naming:
+
 ```bash
 git branch -a | grep stable
 ```
@@ -234,6 +252,7 @@ git branch -a | grep stable
 ### "Cannot determine collection path"
 
 Ensure you're either:
+
 1. In a collection directory with `galaxy.yml`, OR
 2. Providing a valid collection name like `amazon.aws`
 
@@ -251,6 +270,7 @@ All scripts include built-in dependency checks with helpful error messages.
 ## Integration
 
 This skill integrates with:
+
 - `release-prep` - Prepares release after analysis determines version
 - `release` - Full release orchestrator (uses this for analysis step)
 

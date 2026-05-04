@@ -44,6 +44,7 @@ source ~/.ansible-release.conf
 ```
 
 Available configuration options:
+
 - `ANSIBLE_COLLECTIONS_PATH` - Where collections are stored
 - `GITHUB_USERNAME` - Your GitHub username for PRs
 - `SANITY_MODE` - Default sanity test mode (smart/full/changed-only)
