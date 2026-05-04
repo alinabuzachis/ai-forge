@@ -1,425 +1,556 @@
 ---
 name: stable-release
 description: >-
-  Guides the release of an Ansible collection following the stable-branch
-  workflow. Analyzes pending releases on stable-X branches, determines
-  appropriate SemVer version bumps from changelog fragments, generates
-  changelogs, runs quality checks, and creates release PRs. Use when
-  releasing from stable branches (stable-1, stable-2, etc.) rather than
-  main branch.
+  Complete end-to-end release workflow orchestrator for Ansible collections
+  using stable-X branch strategy. Coordinates stable-release-analyze, 
+  stable-release-prep, docs-generate, lint, and sanity skills for a fully
+  automated stable branch release process. Use when the user wants to release
+  a collection with multiple stable branches.
+imports:
+  - stable-release-analyze
+  - stable-release-prep
+  - docs-generate
+  - tox-lint
+  - sanity
 ---
 
-# Skill: stable-release
+# Stable Branch Release Orchestrator
+
+Complete end-to-end release workflow for collections with stable-X branches.
+
+## Author
+
+**Alina Buzachis (alinabuzachis)** - Ansible Cloud Content Team
+
+## Reference Documentation
+
+- Ansible Cloud Content Handbook: https://github.com/ansible-collections/cloud-content-handbook
+- Release Process: https://github.com/ansible-collections/cloud-content-handbook/blob/main/stable-release.md
 
 ## Purpose
 
-Guide the release of an Ansible collection using the stable-branch workflow.
-This skill is designed for collections that maintain multiple stable release
-branches (stable-1, stable-2, etc.) following the Ansible Cloud Content
-Handbook process.
+Orchestrates all release steps from analysis to PR creation for stable-branch workflows. Imports and coordinates individual skills (stable-release-analyze, stable-release-prep, docs-generate, tox-lint, sanity) in the correct order with proper error handling and user interaction.
 
-## When to Invoke
+## File Operations - Batch Processing
 
-TRIGGER when:
+**CRITICAL**: This orchestrator must minimize permission prompts by batching operations.
 
-- A user asks to release from a stable branch (stable-1, stable-11, etc.)
-- A user asks to check which stable branches need releases
-- A user mentions "backport release" or "stable branch release"
-- A user asks about releasing a patch or minor version on an older stable line
+**Key principles**:
+1. **Virtual environment first**: Set up .venv with all required dependencies (antsibull-changelog, ansible-core, tox)
+2. **Batch all file reads**: Read galaxy.yml, changelog fragments, and other files in ONE message with parallel tool calls
+3. **Parallel quality checks**: Run `/tox-lint` and `/sanity` in parallel using background agents
+4. **Sequential git operations**: Git operations via Bash tool are naturally batched in commands
 
-DO NOT TRIGGER when:
+**Example flow**:
+```
+Message 1: Setup venv with uv/pip (antsibull-changelog, ansible-core, tox)
+Message 2: Read galaxy.yml + all changelog fragments (parallel)
+Message 3: Run git operations (single bash command with &&)
+Message 4: Invoke /tox-lint and /sanity (parallel, run_in_background)
+Message 5: Write/Edit files after analysis complete
+```
 
-- Releasing from main/master branch (use `release` skill instead)
-- Reviewing a PR (use `pr-review` skill instead)
-- Running tests (use `run-tests` skill instead)
-
-## Inputs
-
-- `branch` (optional): stable branch to release from (e.g., `stable-11`). If not provided, analyzes all stable branches.
-- `version` (optional): target release version (e.g., `11.3.0`). If not provided, automatically determined from changelog fragments.
-
-## Prerequisites
-
-- `antsibull-changelog` installed (`pip install antsibull-changelog`)
-- `ansible-core` installed (provides ansible-doc for changelog generation)
-- `tox` configured with lint environments
-- `gh` CLI installed and authenticated
-- Git remotes configured: `origin` (your fork), `upstream` (canonical repo)
-
-## Human Confirmation Gates
-
-**Do not proceed past a confirmation gate without explicit human approval.**
-Present the relevant information and wait for the human to confirm
-before continuing to the next step. Gates are marked with **CONFIRM** below.
-
-## Release Steps
-
-### Step 1: Analyze Stable Branches
-
-**Purpose**: Determine which stable branches have unreleased commits and calculate appropriate versions.
-
-**Commands**:
-
+**Virtual environment setup** (use uv for speed):
 ```bash
-# Determine collection path
-COLLECTION_PATH="${ANSIBLE_COLLECTIONS_PATH:-$HOME/dev/collections/ansible_collections}/NAMESPACE/NAME"
-cd "$COLLECTION_PATH"
-
-# Fetch all branches and tags
-git fetch upstream --tags
-git fetch upstream
-
-# List all stable branches
-git branch -r | grep "upstream/stable-" | sed 's/.*upstream\///'
-
-# For each stable branch, analyze pending releases
-# (Repeat for each stable-X branch)
-BRANCH="stable-11"
-git checkout "$BRANCH"
-git pull upstream "$BRANCH"
-
-# Find last tag
-LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-echo "Last release: $LAST_TAG"
-
-# Count commits since last tag
-COMMIT_COUNT=$(git log ${LAST_TAG}..HEAD --oneline | wc -l | tr -d ' ')
-echo "Commits since last tag: $COMMIT_COUNT"
-
-# List changelog fragments
-ls -1 changelogs/fragments/*.yml 2>/dev/null | grep -v ".keep" || echo "No fragments"
-
-# Analyze fragment types to determine SemVer bump
-# - breaking_changes, removed_features → MAJOR
-# - major_changes, minor_changes, deprecated_features → MINOR  
-# - bugfixes, security_fixes, trivial → PATCH
+python3 -m venv .venv && source .venv/bin/activate && \
+(command -v uv &> /dev/null && \
+  uv pip install antsibull-changelog ansible-core tox || \
+  pip install --quiet antsibull-changelog ansible-core tox)
 ```
-
-**Output Example**:
-
-```
-Stable branches found: 10
-
-✅ stable-11: 11.2.0 → 11.3.0 (MINOR)
-   Commits: 12, Fragments: 6
-   - error-handler-format-strings.yml: minor_changes (impact: MINOR)
-   - 2939-elb-rules-sorting.yml: bugfixes (impact: MINOR)
-   - 4 trivial/bugfix fragments
-
-✓ stable-10: Up to date (10.3.0)
-
-⚠️ stable-9: 3 commits but no changelog fragments
-```
-
-**CONFIRM**: Which branch should we release? Present the analysis and wait for user to specify branch and confirm version.
-
-### Step 2: Create Prep Branch
-
-**Purpose**: Create release preparation branch and update galaxy.yml version.
-
-**Commands**:
-
-```bash
-# Ensure on correct stable branch
-git checkout stable-11
-git pull upstream stable-11
-
-# Create prep branch
-VERSION="11.3.0"
-git checkout -b "prep_v${VERSION}"
-
-# Update galaxy.yml version
-sed -i '' "s/^version: .*/version: ${VERSION}/" galaxy.yml
-
-# Verify change
-git diff galaxy.yml
-```
-
-### Step 3: Create Release Summary Fragment
-
-**Purpose**: Create VERSION.yml fragment with release summary.
-
-**CRITICAL**: Module and plugin names MUST be wrapped in double backticks (\`\`name\`\`).
-
-**Commands**:
-
-```bash
-# Create release summary fragment
-cat > "changelogs/fragments/${VERSION}.yml" <<'EOF'
-release_summary: >
-  This minor release adds new features to the ``ec2_instance`` and
-  ``rds_instance`` modules, including support for new AWS regions
-  and improved error handling.
-EOF
-
-# Customize the summary based on actual changes
-# Review existing fragments to understand what changed
-ls -1 changelogs/fragments/*.yml
-cat changelogs/fragments/*.yml
-```
-
-**Formatting Rules**:
-
-- Use `>` (folded block scalar), NOT `|` (literal block scalar)
-- Wrap all module/plugin names in double backticks: \`\`module_name\`\`
-- Keep lines under 160 characters for ansible-lint compliance
-- Match tone to fragment type:
-  - PATCH: "This patch release includes bugfixes for..."
-  - MINOR: "This minor release adds new features to..."
-  - MAJOR: "This major release includes breaking changes to..."
-
-### Step 4: Generate Changelog
-
-**Purpose**: Run antsibull-changelog to generate CHANGELOG.rst and update changelog.yaml.
-
-**Commands**:
-
-```bash
-# Run antsibull-changelog
-antsibull-changelog release --version "${VERSION}"
-
-# Verify changelog was generated
-grep -q "v${VERSION}" CHANGELOG.rst && echo "✅ CHANGELOG.rst updated"
-grep -q "${VERSION}:" changelogs/changelog.yaml && echo "✅ changelog.yaml updated"
-
-# Check which fragments were processed
-git status --short changelogs/fragments/
-```
-
-**CRITICAL**: Fix antsibull-changelog indentation bugs:
-
-antsibull-changelog has a known bug where it generates incorrect YAML indentation.
-You MUST validate and fix the entire changelog.yaml file:
-
-```bash
-# Validate YAML with ansible-lint
-ansible-lint --offline changelogs/changelog.yaml
-
-# Common indentation issues to fix:
-# 1. fragments: list items must be 6 spaces (not 4)
-# 2. minor_changes: list items must be 8 spaces (not 6)
-# 3. modules: name/namespace must be 8 spaces (aligned with description)
-# 4. plugins: nested items must be 8 spaces, name/namespace 10 spaces
-```
-
-**Example fixes needed**:
-
-```yaml
-# WRONG:
-    fragments:
-    - 11.3.0.yml
-
-# CORRECT:
-    fragments:
-      - 11.3.0.yml
-
-# WRONG:
-      minor_changes:
-      - Added feature
-
-# CORRECT:
-      minor_changes:
-        - Added feature
-```
-
-### Step 5: Run Quality Checks
-
-**Purpose**: Validate code quality before committing.
-
-**Commands**:
-
-```bash
-# Run tox linters
-tox -m lint
-
-# If tox doesn't include ansible-lint, run separately:
-ansible-lint --offline
-
-# Verify changelog.yaml passes lint
-ansible-lint --offline changelogs/changelog.yaml
-```
-
-**CONFIRM**: Review lint results. If failures, fix them before proceeding.
-
-### Step 6: Commit and Push
-
-**Purpose**: Commit release changes and push to fork.
-
-**Commands**:
-
-```bash
-# Stage release files
-git add galaxy.yml CHANGELOG.rst changelogs/
-
-# Verify no unwanted files (like .plugin-cache.yaml)
-git status
-
-# Create commit
-git commit -m "$(cat <<EOF
-Release v${VERSION}
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-EOF
-)"
-
-# Push to fork
-git push origin "prep_v${VERSION}"
-```
-
-### Step 7: Create Pull Request
-
-**Purpose**: Open PR to upstream stable branch.
-
-**CONFIRM**: Ask user if they want to create PR now.
-
-**Commands**:
-
-```bash
-# Create PR using gh CLI
-gh pr create \
-  --repo ansible-collections/COLLECTION_NAME \
-  --base stable-11 \
-  --head YOUR_USERNAME:prep_v${VERSION} \
-  --title "Release v${VERSION}" \
-  --body "$(cat <<'EOF'
-## Release v11.3.0
-
-This PR prepares the v11.3.0 release for the amazon.aws collection.
-
-### Changes
-- Updated galaxy.yml to v11.3.0
-- Generated changelog from 6 fragments
-- Updated CHANGELOG.rst
-
-### Quality Checks
-- ✅ Lint: All checks passed
-- ✅ Sanity: Skipped (run in CI)
-
-### Checklist
-- [x] Version updated in galaxy.yml
-- [x] Changelog generated with antsibull-changelog
-- [x] YAML indentation fixed and validated
-- [x] Lint checks passed
-
----
-*Generated following the [Ansible Cloud Content Handbook](https://github.com/ansible-collections/cloud-content-handbook)*
-EOF
-)"
-```
-
-**Output**: PR URL for monitoring.
-
-### Step 8: Post-Merge Tagging
-
-**Purpose**: After PR is merged, tag the release.
-
-**Commands** (run after PR merge):
-
-```bash
-# Sync with upstream
-git checkout stable-11
-git pull upstream stable-11
-
-# Create and push tag
-git tag "v${VERSION}"
-git push upstream "v${VERSION}"
-
-# Verify GitHub Actions publish to Galaxy
-gh run list --workflow=release.yml --limit 5
-```
-
-## SemVer Calculation Rules
-
-Based on Ansible changelog fragment types:
-
-| Fragment Type | Impact | Version Bump | Example |
-|--------------|--------|--------------|---------|
-| `breaking_changes` | **MAJOR** | X.0.0 | 11.2.0 → 12.0.0 |
-| `removed_features` | **MAJOR** | X.0.0 | 11.2.0 → 12.0.0 |
-| `major_changes` | **MINOR** | x.Y.0 | 11.2.0 → 11.3.0 |
-| `minor_changes` | **MINOR** | x.Y.0 | 11.2.0 → 11.3.0 |
-| `deprecated_features` | **MINOR** | x.Y.0 | 11.2.0 → 11.3.0 |
-| `bugfixes` | **PATCH** | x.y.Z | 11.2.0 → 11.2.1 |
-| `security_fixes` | **PATCH** | x.y.Z | 11.2.0 → 11.2.1 |
-| `trivial` | **PATCH** | x.y.Z | 11.2.0 → 11.2.1 |
-
-**Rule**: The highest impact across all fragments determines the bump.
-
-## Common Issues and Fixes
-
-### Issue: changelog.yaml indentation errors
-
-**Symptom**: ansible-lint fails in CI with YAML parsing errors even though it passed locally.
-
-**Cause**: antsibull-changelog generates incorrect indentation (4 spaces instead of 6/8).
-
-**Fix**: Read entire changelog.yaml and fix ALL list indentations:
-- fragments: 6 spaces
-- minor_changes/bugfixes: 8 spaces  
-- modules: name/namespace at 8 spaces
-- plugins: nested items at 8+ spaces
-
-**Validation**:
-
-```bash
-ansible-lint --offline changelogs/changelog.yaml
-# Should output: "Passed: 0 failure(s), 0 warning(s)"
-```
-
-### Issue: .plugin-cache.yaml committed
-
-**Symptom**: CI complains about .plugin-cache.yaml in commit.
-
-**Cause**: collection_prep auto-generates this file, should never be committed (it's in build_ignore).
-
-**Fix**:
-
-```bash
-rm -f changelogs/.plugin-cache.yaml
-git reset changelogs/.plugin-cache.yaml
-```
-
-### Issue: README.md links point to wrong branch
-
-**Symptom**: Documentation links point to main instead of stable-11.
-
-**Cause**: collection_prep defaults to main branch in generated links.
-
-**Fix**: Update README.md links to match target stable branch:
-
-```markdown
-# Change:
-/blob/main/docs/
-
-# To:
-/blob/stable-11/docs/
-```
-
-## Integration with Other Skills
-
-- **commit** - Use after release to create conventional commits for post-release version bump
-- **pr-review** - Use to review the release PR before merging
-- **run-tests** - Optional, run integration tests before release (time-consuming)
 
 ## Configuration
 
-Optional environment variables:
-
+Reads from `~/.ansible-release.conf`:
 ```bash
-export GITHUB_USERNAME="your-username"
+export GITHUB_USERNAME="alinabuzachis"
 export ANSIBLE_COLLECTIONS_PATH="~/dev/collections/ansible_collections"
-export SANITY_MODE="smart"  # For optional sanity testing
+export SANITY_MODE="smart"
+export AUTO_CREATE_PR="prompt"  # true | false | prompt
+export LINT_ON_COMMIT="true"
+export SANITY_ON_COMMIT="true"
 ```
 
-## Reference
+## When to Use This Skill
 
-- [Ansible Cloud Content Handbook - Stable Release Process](https://github.com/ansible-collections/cloud-content-handbook/blob/main/stable-release.md)
-- [antsibull-changelog Documentation](https://github.com/ansible-community/antsibull-changelog)
+- Performing a complete collection release
+- Automating the release process from start to finish
+- After changelog fragments have been created
+- When asked to release, publish, or ship a new version
+- To follow the cloud-content-handbook release process
+
+## Usage Examples
+
+```bash
+# Full automated release (interactive prompts)
+/stable-release
+
+# Analyze only (no changes)
+/stable-release --analyze-only
+
+# Prepare specific version
+/stable-release --collection amazon.ai --version 1.0.1 --branch stable-1
+
+# Skip specific steps
+/stable-release --skip-lint --skip-sanity
+
+# Full automation (no prompts)
+/stable-release --auto --create-pr
+
+# Dry run (show what would happen)
+/stable-release --dry-run
+```
+
+## Workflow Steps
+
+The orchestrator executes skills in this order:
+
+### Step 1: Analyze (`stable-release-analyze`)
+**Purpose**: Determine if release is needed and calculate version
+
+```bash
+/stable-release-analyze ${COLLECTION}
+```
+
+- Checks stable branches for unreleased commits
+- Analyzes changelog fragments
+- Calculates SemVer bump (major/minor/patch)
+- Generates release plan
+
+**Output**:
+```
+Branch: stable-1
+Current: 1.0.0 → Proposed: 1.0.1 (PATCH)
+Reason: 1 bugfix fragment
+```
+
+**Prompt** (unless `--auto`):
+```
+Found pending release for stable-1 → v1.0.1
+Proceed with release? [Y/n]:
+```
+
+If `--analyze-only`: Stop here and exit.
+
+### Step 2: Prepare (`stable-release-prep`)
+**Purpose**: Create release branch and update files
+
+```bash
+/stable-release-prep --collection ${COLLECTION} --version ${VERSION} --branch ${BRANCH}
+```
+
+- Creates `prep_vX.Y.Z` branch
+- Updates `galaxy.yml` version
+- Creates release summary fragment (with \`\`backticks\`\`)
+- Runs `antsibull-changelog release`
+
+**Output**:
+```
+✅ Branch created: prep_v1.0.1
+✅ galaxy.yml updated: 1.0.0 → 1.0.1
+✅ Changelog generated
+```
+
+**Prompt** (unless `--auto`):
+```
+Review git diff before proceeding? [Y/n]:
+```
+
+If yes: Display `git diff --stat`
+
+### Step 3: Documentation (`docs-generate`)
+**Purpose**: Update module documentation
+
+```bash
+/docs-generate
+```
+
+- Runs `tox -e add_docs`
+- Updates module RST files
+- Updates README.md
+
+**Output**:
+```
+✅ Documentation updated (12 files)
+```
+
+Skip if `--skip-docs` flag provided.
+
+### Step 4: Quality Checks (Parallel)
+**Purpose**: Validate code quality and tests
+
+**CRITICAL**: Execute in parallel using a SINGLE message with TWO Skill tool calls:
+
+```
+In ONE message, invoke:
+  - Skill: "tox-lint" with args "--path=${COLLECTION_PATH}"
+  - Skill: "sanity" with args "--mode=${SANITY_MODE} --path=${COLLECTION_PATH}"
+  
+This batches permission requests and runs checks in parallel.
+```
+
+Alternative using Agent tool (if Skill doesn't support parallel):
+```bash
+# Launch both concurrently in same message
+Agent(skill="tox-lint", args="--path=${COLLECTION_PATH}", run_in_background=True)
+Agent(skill="sanity", args="--mode=${SANITY_MODE} --path=${COLLECTION_PATH}", run_in_background=True)
+
+# Claude Code will notify when both complete
+```
+
+**Output**:
+```
+Running quality checks...
+  /tox-lint --path=${COLLECTION_PATH} (parallel)
+  /sanity --mode=smart --path=${COLLECTION_PATH} (parallel)
+
+✅ tox-lint: All checks passed (84.7s)
+✅ sanity: All tests passed (45.3s)
+```
+
+**On Failure**:
+```
+❌ Quality checks failed
+
+tox-lint: FAILED
+  - black-lint: 3 files need formatting
+
+sanity: FAILED
+  - validate-modules: Missing RETURN docs in devopsguru_resource_collection.py
+
+Options:
+  [r] Retry after fixing
+  [s] Skip checks (not recommended)
+  [a] Abort
+
+Choice [r/s/a]:
+```
+
+Skip if `--skip-lint` or `--skip-sanity` flags provided.
+Continue despite failures if `--force` flag provided.
+
+### Step 5: Commit & Push (`release-commit-push`)
+**Purpose**: Commit changes and push to fork
+
+```bash
+/stable-release-commit-push
+```
+
+- Stages release files
+- Commits with standard message
+- Pushes to origin (fork)
+
+**Output**:
+```
+✅ Committed: 46a848a
+✅ Pushed to origin/prep_v1.0.1
+```
+
+### Step 6: Pull Request (Conditional)
+**Purpose**: Create PR to upstream
+
+Based on `AUTO_CREATE_PR` config or `--create-pr` flag:
+
+**If `AUTO_CREATE_PR=prompt`** (default):
+```
+Create pull request now? [Y/n]:
+```
+
+**If yes or `AUTO_CREATE_PR=true`**:
+```bash
+gh pr create \
+  --repo ${UPSTREAM_ORG}/${REPO} \
+  --base ${BRANCH} \
+  --head ${GITHUB_USERNAME}:prep_v${VERSION} \
+  --title "Release v${VERSION}" \
+  --body "$(cat <<EOF
+## Release v${VERSION}
+
+This PR prepares the v${VERSION} release for the ${NAMESPACE}.${NAME} collection.
+
+### Changes
+- Updated galaxy.yml to v${VERSION}
+- Generated changelog from fragments
+- Updated documentation
+
+### Quality Checks
+- ✅ Lint: All checks passed
+- ✅ Sanity: All tests passed
+
+### Checklist
+- [x] Version updated in galaxy.yml
+- [x] Changelog generated
+- [x] Documentation updated
+- [x] Lint checks passed
+- [x] Sanity tests passed
+
+---
+*Generated by Ansible Release Orchestrator*
+*Reference: https://github.com/ansible-collections/cloud-content-handbook*
+EOF
+)"
+```
+
+**Output**:
+```
+✅ PR created: https://github.com/ansible-collections/amazon.ai/pull/42
+```
+
+## Complete Output Example
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ansible Collection Release Orchestrator
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Collection: amazon.ai
+Working directory: /Users/alinabuzachis/dev/collections/ansible_collections/amazon/ai
+Reference: https://github.com/ansible-collections/cloud-content-handbook
+
+[1/6] Analyzing pending releases...
+      Running: /stable-release-analyze
+
+      ✅ Analysis complete
+      Branch: stable-1
+      Current: 1.0.0 → Proposed: 1.0.1 (PATCH)
+      Reason: 1 bugfix fragment
+
+      Proceed with release v1.0.1? [Y/n]: y
+
+[2/6] Preparing release branch...
+      Running: /stable-release-prep --version 1.0.1 --branch stable-1
+
+      ✅ Branch created: prep_v1.0.1
+      ✅ galaxy.yml updated
+      ✅ Changelog generated
+
+[3/6] Generating documentation...
+      Running: /docs-generate
+
+      ✅ Documentation updated (12 files)
+
+[4/6] Running quality checks...
+      Running: /tox-lint --path=${COLLECTION_PATH} (parallel)
+      Running: /sanity --mode=smart --path=${COLLECTION_PATH} (parallel)
+
+      ✅ tox-lint: All checks passed (84.7s)
+      ✅ sanity: All tests passed (45.3s)
+
+[5/6] Committing and pushing...
+      Running: /stable-release-commit-push
+
+      ✅ Committed: 46a848a
+      ✅ Pushed to origin/prep_v1.0.1
+
+[6/6] Creating pull request...
+      Auto-create PR: prompt
+
+      Create PR now? [Y/n]: y
+
+      ✅ PR created: https://github.com/ansible-collections/amazon.ai/pull/42
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Release workflow complete! 🎉
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Summary:
+  Collection: amazon.ai
+  Version: 1.0.0 → 1.0.1
+  Branch: prep_v1.0.1
+  Commit: 46a848ad98855647d56e00bcbb5b5fd4b8ce67f7
+  PR: https://github.com/ansible-collections/amazon.ai/pull/42
+
+Next steps:
+  1. Monitor PR: https://github.com/ansible-collections/amazon.ai/pull/42
+  2. After merge, tag release: git tag v1.0.1 && git push upstream v1.0.1
+  3. GitHub Actions will publish to Galaxy
+
+Total time: 2m 34s
+```
+
+## Error Handling & Recovery
+
+### Recoverable Errors
+
+**Lint/Sanity Failures**:
+```
+Options:
+  [r] Retry after fixing issues
+  [s] Skip this step (--force)
+  [a] Abort workflow
+
+Choice [r/s/a]:
+```
+
+**Merge Conflicts**:
+```
+⚠️ Merge conflict detected while syncing stable-1
+
+Actions:
+  1. Resolve conflicts manually
+  2. Run: git add <files>
+  3. Re-run: /stable-release --resume
+
+Abort workflow? [y/N]:
+```
+
+**Network Errors**:
+```
+⚠️ Failed to push to origin (network error)
+
+Retrying in 5 seconds... (attempt 2/3)
+```
+
+### Non-Recoverable Errors
+
+**Missing Configuration**:
+```
+❌ Error: GITHUB_USERNAME not set
+
+Setup required:
+  1. Create config: cp ansible-release.conf.template ~/.ansible-release.conf
+  2. Edit config: vim ~/.ansible-release.conf
+  3. Set GITHUB_USERNAME="your-username"
+  4. Re-run: /stable-release
+```
+
+**Not a Git Repository**:
+```
+❌ Error: Not a git repository
+
+Ensure you're in a collection directory:
+  cd ~/dev/collections/ansible_collections/namespace/collection
+```
+
+### Resume Capability
+
+State is tracked in `.ansible-release-state.json`:
+
+```json
+{
+  "collection": "amazon.ai",
+  "version": "1.0.1",
+  "branch": "prep_v1.0.1",
+  "last_completed_step": "docs-generate",
+  "timestamp": "2026-04-01T14:45:00Z"
+}
+```
+
+Resume workflow:
+```bash
+/stable-release --resume
+```
+
+Output:
+```
+Resuming from last checkpoint...
+Last completed: docs-generate
+Continuing with: quality checks
+```
+
+## Flags & Options
+
+| Flag | Description |
+|------|-------------|
+| `--analyze-only` | Run analysis and stop |
+| `--skip-lint` | Skip linting step |
+| `--skip-sanity` | Skip sanity testing |
+| `--skip-docs` | Skip documentation generation |
+| `--force` | Continue even if quality checks fail |
+| `--auto` | No interactive prompts (use config defaults) |
+| `--create-pr` | Automatically create PR |
+| `--dry-run` | Show what would happen without making changes |
+| `--resume` | Resume from last successful step |
+
+## Integration Points
+
+This orchestrator imports:
+- `/stable-release-analyze` - Determine version needed
+- `/stable-release-prep` - Create branch and changelog
+- `/docs-generate` - Update documentation
+- `/tox-lint` - Run linters
+- `/sanity` - Run sanity tests
+- `/stable-release-commit-push` - Commit and push
+
+## Requirements
+
+### System Requirements
+- `git` with configured remotes
+- `tox` with lint and add_docs environments
+- `antsibull-changelog` installed
+- `gh` CLI (for PR creation)
+
+### Repository Requirements
+- Git remotes: `origin` (fork), `upstream` (canonical)
+- `galaxy.yml` with valid version
+- `tox.ini` with lint and add_docs envs
+- `changelogs/fragments/` with at least one fragment
+
+### Configuration Requirements
+- `~/.ansible-release.conf` with GITHUB_USERNAME
+- SSH keys or HTTPS credentials for GitHub
 
 ## Exit Codes
-
-When implemented as automation:
 
 - `0`: Release workflow completed successfully
 - `1`: Workflow failed at any step
 - `2`: Configuration error or missing requirements
+- `130`: User aborted (Ctrl+C)
+
+## Implementation Notes
+
+### Parallel Execution
+
+Run lint and sanity concurrently for speed:
+```python
+# Use Claude Code's ability to run agents in parallel
+Agent(skill="tox-lint", args="--path=${COLLECTION_PATH}", run_in_background=True)
+Agent(skill="sanity", args="--mode=${SANITY_MODE} --path=${COLLECTION_PATH}", run_in_background=True)
+
+# Claude Code will notify when both complete
+# Then proceed to next step
+```
+
+### State Management
+
+```python
+import json
+from pathlib import Path
+from datetime import datetime
+
+STATE_FILE = Path.cwd() / ".ansible-release-state.json"
+
+def save_state(step: str, data: dict):
+    state = {
+        "last_completed_step": step,
+        "timestamp": datetime.now().isoformat(),
+        **data
+    }
+    STATE_FILE.write_text(json.dumps(state, indent=2))
+
+def load_state():
+    if STATE_FILE.exists():
+        return json.loads(STATE_FILE.read_text())
+    return None
+
+def clear_state():
+    if STATE_FILE.exists():
+        STATE_FILE.unlink()
+```
+
+### User Interaction
+
+Provide clear prompts and progress:
+- Show step numbers [1/6], [2/6], etc.
+- Use status indicators: ✅ ❌ ⚠️
+- Provide actionable error messages
+- Offer resume capability on failure
+- Display total time at completion
+
+### Cloud Content Handbook Compliance
+
+Follow handbook guidelines:
+- Use double backticks for module names
+- Standard commit message format
+- Co-Authored-By: Claude attribution
+- PR template with checklist
+- Quality checks before commit

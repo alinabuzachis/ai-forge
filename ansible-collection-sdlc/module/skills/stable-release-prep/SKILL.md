@@ -20,108 +20,129 @@ and runs antsibull-changelog to produce CHANGELOG.rst.
 TRIGGER when:
 
 - User asks to "prepare release" after analyzing stable branches
-- After analysis identifies a pending release
+- After `/release-analyze` identifies a pending release
 - User requests to "create release branch" or "update version"
 - Before running quality checks (lint/sanity) for a release
 
 DO NOT TRIGGER when:
 
-- Performing full release (use `stable-release` skill instead)
-- Just analyzing (use `stable-release-analyze` skill instead)
+- Performing full release (use `release` skill instead)
+- Just analyzing (use `release-analyze` skill instead)
 - Reviewing a PR (use `pr-review` skill instead)
 
 ## Inputs
 
 - `collection`: collection name (e.g., `amazon.aws`) or path. Defaults to current directory.
-- `version`: target release version (e.g., `11.3.0`). Required.
-- `branch`: stable branch to release from (e.g., `stable-11`). Required.
+- `version`: target release version (e.g., `1.0.1`). Required.
+- `branch`: stable branch to release from (e.g., `stable-1`). Required.
+- `summary` (optional): custom release summary text
 
 ## Prerequisites
 
 - Python 3.8+
-- antsibull-changelog (pip install antsibull-changelog)
-- ansible-core (provides ansible-doc for changelog)
-- PyYAML (for fragment parsing)
+- antsibull-changelog (auto-installed in virtual environment)
+- ansible-core (auto-installed in virtual environment)
 - Git repository with configured `upstream` remote
 - Clean working tree on stable branch
 
+## Virtual Environment Management
+
+**CRITICAL**: This skill ALWAYS creates and uses a virtual environment.
+
+The virtual environment setup is automatic and includes:
+- antsibull-changelog (for changelog generation)
+- ansible-core (provides ansible-doc for changelog)
+- PyYAML (for fragment parsing)
+
 ## Release Preparation Steps
 
-### Step 1: Determine Collection Path and Sync
+### Step 1 — Setup virtual environment and install dependencies
 
 ```bash
-# Parse collection name
-NAMESPACE="amazon"
-NAME="aws"
+cd SKILL_DIR && \
+python3 -m venv .venv 2>/dev/null || true && \
+source .venv/bin/activate && \
+if command -v uv &> /dev/null; then
+  uv pip install antsibull-changelog ansible-core pyyaml
+else
+  pip install --quiet --upgrade pip && \
+  pip install --quiet antsibull-changelog ansible-core pyyaml
+fi
+```
+
+Replace `SKILL_DIR` with the directory containing this skill's scripts folder.
+
+### Step 2 — Determine collection path and sync base branch
+
+If collection name provided (e.g., `amazon.aws`):
+```bash
+NAMESPACE=$(echo "COLLECTION" | cut -d. -f1)
+NAME=$(echo "COLLECTION" | cut -d. -f2)
 COLLECTION_PATH="${ANSIBLE_COLLECTIONS_PATH:-$HOME/dev/collections/ansible_collections}/$NAMESPACE/$NAME"
+```
 
-# Navigate to collection
-cd "$COLLECTION_PATH"
-
-# Verify it's a collection
+If in collection directory:
+```bash
+COLLECTION_PATH=$(pwd)
 [ -f "galaxy.yml" ] || { echo "Error: Not an Ansible collection"; exit 2; }
-
-# Sync with upstream
-BRANCH="stable-11"
-git checkout "$BRANCH"
-git pull upstream "$BRANCH"
 ```
 
-### Step 2: Validate Parameters
-
+Sync with upstream:
 ```bash
-# Extract current version from galaxy.yml
+cd "$COLLECTION_PATH" && \
+git checkout BRANCH && \
+git pull upstream BRANCH
+```
+
+### Step 3 — Validate parameters
+
+Extract current version from galaxy.yml:
+```bash
 CURRENT_VERSION=$(grep '^version:' galaxy.yml | awk '{print $2}' | tr -d '"')
-echo "Current version: $CURRENT_VERSION"
-
-# Target version
-VERSION="11.3.0"
-echo "Target version: $VERSION"
-
-# Verify new version is higher than current
-# (You should implement version comparison logic)
 ```
 
-### Step 3: Create Prep Branch
+Verify new version is higher than current:
+```bash
+# Compare versions - VERSION must be > CURRENT_VERSION
+# If not, exit with error
+```
+
+### Step 4 — Create prep branch
 
 ```bash
-# Create prep branch
-git checkout -b "prep_v${VERSION}"
-
-echo "✅ Branch created: prep_v${VERSION}"
+git checkout -b prep_vVERSION
 ```
 
-### Step 4: Update galaxy.yml Version
+Example: `prep_v1.0.1`
 
+### Step 5 — Update galaxy.yml version
+
+Use the Edit tool or sed to update the version field:
 ```bash
-# Update version field
-sed -i '' "s/^version: .*/version: ${VERSION}/" galaxy.yml
-
-# Verify change
-git diff galaxy.yml
-
-echo "✅ galaxy.yml updated: $CURRENT_VERSION → $VERSION"
+sed -i '' "s/^version: .*/version: VERSION/" galaxy.yml
 ```
 
-### Step 5: Create Release Summary Fragment
+Or use the update-galaxy-version.py script:
+```bash
+cd SKILL_DIR && source .venv/bin/activate && \
+./scripts/update-galaxy-version.py COLLECTION_PATH VERSION
+```
+
+### Step 6 — Create release summary fragment
 
 **CRITICAL**: Module and plugin names MUST be wrapped in double backticks (\`\`name\`\`).
 
-**CRITICAL**: Use `>` (folded block scalar), NOT `|` (literal block scalar).
+**CRITICAL**: Use `>` (folded block scalar), NOT `|` (literal block scalar) for release_summary to avoid blank lines in changelog.yaml.
 
-```bash
-# Create release summary fragment
-cat > "changelogs/fragments/${VERSION}.yml" <<'EOF'
+Create `changelogs/fragments/VERSION.yml`:
+
+```yaml
 release_summary: >
-  This minor release adds new features to the ``ec2_instance`` and
-  ``rds_instance`` modules, including enhanced error handling with
-  f-string parameter interpolation and improved ELB listener rule sorting.
-EOF
-
-echo "✅ Release summary created"
+  This patch release includes bugfixes for the ``module_name`` module
+  and improvements to the ``other_module`` module for better error handling.
 ```
 
-**Auto-generation logic**:
+Auto-generation logic:
 1. Parse existing fragments to understand changes
 2. Run `git diff LAST_TAG..HEAD --stat` to detect modified files
 3. Extract module names from `plugins/modules/` changes
@@ -130,19 +151,18 @@ echo "✅ Release summary created"
    - Minor changes → "This minor release adds new features to..."
    - Breaking changes → "This major release includes breaking changes to..."
 
-### Step 6: Run antsibull-changelog Release
+Use the generate-release-summary.py script:
+```bash
+cd SKILL_DIR && source .venv/bin/activate && \
+./scripts/generate-release-summary.py COLLECTION_PATH VERSION
+```
+
+### Step 7 — Run antsibull-changelog release
 
 ```bash
-# Run antsibull-changelog
-antsibull-changelog release --version "${VERSION}"
-
-# Verify CHANGELOG.rst was updated
-grep -q "v${VERSION}" CHANGELOG.rst && echo "✅ CHANGELOG.rst updated"
-
-# Verify changelog.yaml was updated
-grep -q "${VERSION}:" changelogs/changelog.yaml && echo "✅ changelog.yaml updated"
-
-echo "✅ Changelog generated"
+cd COLLECTION_PATH && \
+source SKILL_DIR/.venv/bin/activate && \
+antsibull-changelog release --version VERSION
 ```
 
 This will:
@@ -151,72 +171,133 @@ This will:
 - Update `changelogs/changelog.yaml`
 - Delete processed fragment files (except VERSION.yml release summary)
 
-### Step 7: Fix Common antsibull-changelog Bugs
+### Step 8 — Verify and fix changelog generation
 
-**CRITICAL**: antsibull-changelog generates incorrect YAML indentation!
-
-**Issue 1: changelog.yaml indentation errors**
-
-ansible-lint will fail in CI with incorrect indentation (4 spaces instead of 6/8 for list items).
-
-**You MUST read and validate the ENTIRE changelog.yaml file**:
-
+Check that CHANGELOG.rst was updated:
 ```bash
-# Validate with ansible-lint
-ansible-lint --offline changelogs/changelog.yaml
+grep -q "vVERSION" CHANGELOG.rst || {
+  echo "Error: CHANGELOG.rst not updated";
+  exit 1;
+}
 ```
 
-**Common patterns to fix**:
+Check that changelog.yaml has new release entry:
+```bash
+grep -q "VERSION:" changelogs/changelog.yaml || {
+  echo "Error: changelog.yaml not updated";
+  exit 1;
+}
+```
+
+**CRITICAL**: Fix common antsibull-changelog bugs:
+
+**Issue 1: changelog.yaml indentation errors**
+antsibull-changelog has a known bug where it generates incorrect YAML indentation (4 spaces instead of 6/8 for list items). This causes ansible-lint to fail in CI even though tox linters pass locally.
+
+**IMPORTANT**: You must check ALL list structures in the entire file, not just the new release section. The bug affects multiple release entries and different list types.
+
+**Complete validation checklist:**
+
+1. **Read the entire changelog.yaml file** (not just the new release section)
+2. **Check ALL occurrences** of these list structures:
+   - `fragments:` - list items must be 6 spaces
+   - `modules:` - list items must be 6 spaces, with `name:`/`namespace:` at 8 spaces
+   - `plugins:` - nested items (e.g., `connection:`) must be 8 spaces, with `name:`/`namespace:` at 10 spaces
+   - `minor_changes:` / `bugfixes:` / `breaking_changes:` - list items must be 8 spaces (nested under `changes:`)
+   - `major_changes:` / `deprecated_features:` / `removed_features:` - list items must be 8 spaces
+
+3. **Validate with ansible-lint** after fixing:
+   ```bash
+   ansible-lint --offline changelogs/changelog.yaml
+   ```
+
+**Common indentation patterns to fix:**
 
 ```yaml
 # WRONG Pattern 1: fragments list items at 4 spaces
     fragments:
-    - 11.3.0.yml
+    - 1.1.0.yml
     - other-fragment.yml
 
 # CORRECT: fragments list items at 6 spaces
     fragments:
-      - 11.3.0.yml
+      - 1.1.0.yml
       - other-fragment.yml
+```
 
+```yaml
 # WRONG Pattern 2: minor_changes list items at 6 spaces
       minor_changes:
-      - Added new feature
+      - Added new feature to module
+      - Updated documentation
 
 # CORRECT: minor_changes list items at 8 spaces
       minor_changes:
-        - Added new feature
+        - Added new feature to module
+        - Updated documentation
+```
 
+```yaml
 # WRONG Pattern 3: modules with name/namespace at 6 spaces
     modules:
-      - description: Call a tool
+      - description: Call a specific tool
       name: run_tool
       namespace: ''
 
-# CORRECT: modules with name/namespace at 8 spaces
+# CORRECT: modules with name/namespace at 8 spaces (aligned with description)
     modules:
-      - description: Call a tool
+      - description: Call a specific tool
         name: run_tool
         namespace: ''
 ```
 
-**Issue 2: release_summary line too long**
+```yaml
+# WRONG Pattern 4: plugins nested items at 6 spaces
+    plugins:
+      connection:
+      - description: Persistent connection
+      name: mcp
+      namespace: null
 
-ansible-lint enforces 160-character line length. If exceeded, break into multiple lines:
+# CORRECT: plugins nested items at 8 spaces, name/namespace at 10 spaces
+    plugins:
+      connection:
+        - description: Persistent connection
+          name: mcp
+          namespace: null
+```
+
+**Pro tip:** After fixing indentation, always validate the entire file:
+```bash
+# Validate YAML syntax
+ansible-lint --offline changelogs/changelog.yaml
+
+# Should output: "Passed: 0 failure(s), 0 warning(s)"
+```
+
+**Why this happens:**
+antsibull-changelog generates different list items inconsistently across releases. Even if you fixed indentation during a previous release (e.g., 1.0.0), the next release (e.g., 1.1.0) will have the same bug. You must check the entire file every time, not just the new release section.
+
+**Issue 1b: release_summary line too long**
+ansible-lint enforces a 160-character line length limit. If the release_summary exceeds this, break it into multiple lines using YAML's implicit string continuation:
 
 ```yaml
 # WRONG (line too long):
-      release_summary: This minor release adds new features and enhancements to the amazon.aws collection...
+      release_summary: This minor release adds new features and enhancements to the ansible.mcp collection, including enhanced ``tools_info`` action plugin with server metadata support, JQ query support for MCP server event auditing, and updates to the ``run_tool`` module for node count query support.
 
 # CORRECT (broken into multiple lines):
       release_summary: This minor release adds new features and enhancements to the
-        amazon.aws collection, including enhanced error handling and improved sorting.
+        ansible.mcp collection, including enhanced ``tools_info`` action plugin with
+        server metadata support, JQ query support for MCP server event auditing, and
+        updates to the ``run_tool`` module for node count query support.
 ```
 
-**Issue 3: .plugin-cache.yaml committed**
+**Note:** When using YAML implicit continuation (no `>` or `|`), line breaks are collapsed into spaces, producing the same single-line output as the original.
 
-Remove if present:
+**Issue 2: .plugin-cache.yaml committed**
+collection_prep (run by docs-generate) creates `changelogs/.plugin-cache.yaml`. This file should never be committed (it's in build_ignore).
 
+Remove it if present:
 ```bash
 if [ -f "changelogs/.plugin-cache.yaml" ]; then
   rm -f "changelogs/.plugin-cache.yaml"
@@ -224,41 +305,34 @@ if [ -f "changelogs/.plugin-cache.yaml" ]; then
 fi
 ```
 
-### Step 8: Display Changes
+### Step 9 — Display changes and next steps
 
+Show what was changed:
 ```bash
-# Show what was changed
 git status --short
 git diff --stat
-
-echo "
-Changed files:
-  M galaxy.yml
-  M CHANGELOG.rst
-  M changelogs/changelog.yaml
-  D changelogs/fragments/*.yml (processed fragments)
-"
 ```
 
-### Step 9: Next Steps
+**CONFIRM:** Present the changes to the user:
+- galaxy.yml version update
+- New release summary fragment
+- Updated CHANGELOG.rst
+- Updated changelog.yaml
+- Deleted fragment files
 
-Present these next steps to the user:
+Ask the user to confirm the changes look correct before proceeding.
 
+Provide next steps:
 1. Review changes: `git diff`
-2. Run quality checks: `tox -m lint` and optionally `ansible-test sanity`
-3. Commit and push:
-   ```bash
-   git add -A
-   git commit -m "Release v${VERSION}"
-   git push origin "prep_v${VERSION}"
-   ```
+2. Generate docs: `/docs-generate`
+3. Run quality checks: `/lint` and `/sanity`
+4. Commit and push: `git add -A && git commit -m "Release vVERSION"`
 
 ## Release Summary Formatting Rules
 
-Per cloud-content-handbook guidelines:
+Per cloud-content-handbook guidelines, wrap all module/plugin/collection names in double backticks:
 
 **✅ Correct:**
-
 ```yaml
 release_summary: >
   This release includes updates to the ``my_module`` and ``other_module``
@@ -266,7 +340,6 @@ release_summary: >
 ```
 
 **❌ Incorrect (missing backticks):**
-
 ```yaml
 release_summary: >
   This release includes updates to the my_module and other_module
@@ -274,39 +347,68 @@ release_summary: >
 ```
 
 **❌ Incorrect (using `|` instead of `>`):**
-
 ```yaml
 release_summary: |
-  This release includes updates to the ``my_module`` module.
+  This release includes updates to the ``my_module`` and ``other_module``
+  modules for better ``aws_service`` integration.
 ```
 
 **Why use `>` (folded block scalar)?**
+- `>` collapses line breaks into spaces, producing clean single-line output in changelog.yaml
+- `|` (literal block scalar) preserves blank lines exactly, causing awkward formatting in changelog.yaml
+- Both are valid YAML, but `>` produces cleaner antsibull-changelog output
 
-- `>` collapses line breaks into spaces → clean single-line output in changelog.yaml
-- `|` (literal block scalar) preserves blank lines → awkward formatting with extra newlines
+**Example output comparison:**
+```yaml
+# Using `>` (correct):
+release_summary: This release includes updates to the ``my_module`` and ``other_module`` modules for better ``aws_service`` integration.
+
+# Using `|` (produces blank lines):
+release_summary: 'This release includes updates to the ``my_module`` and ``other_module``
+
+  modules for better ``aws_service`` integration.
+
+  '
+```
+
+## Module Name Detection
+
+The generate-release-summary.py script extracts module names from git diff:
+- Pattern: `plugins/modules/MODULE_NAME.py`
+- Automatically wraps in backticks: ``MODULE_NAME``
+- Generates appropriate summary based on fragment categories
+
+## Configuration
+
+Optional environment variables (read from `~/.ansible-release.conf` if present):
+
+```bash
+export ANSIBLE_COLLECTIONS_PATH="~/dev/collections/ansible_collections"
+export REMOTE_UPSTREAM="upstream"
+```
 
 ## Troubleshooting
 
 ### "antsibull-changelog command not found"
 
+The venv setup should prevent this. If it occurs:
 ```bash
+cd SKILL_DIR && source .venv/bin/activate && \
 pip install antsibull-changelog ansible-core
 ```
 
 ### "Version must be higher than current version"
 
 Check current version:
-
 ```bash
 grep version galaxy.yml
 ```
 
-Ensure target version is higher: 11.3.0 > 11.2.0 ✓
+Ensure target version is higher: 1.0.1 > 1.0.0 ✓
 
 ### "No changelog fragments found"
 
 Ensure fragments exist:
-
 ```bash
 ls changelogs/fragments/*.yml
 ```
@@ -316,23 +418,30 @@ At least one non-.keep fragment must exist.
 ### "antsibull-changelog fails"
 
 Verify changelogs/config.yaml exists:
-
 ```bash
 cat changelogs/config.yaml
 ```
 
 Validate fragment YAML syntax:
-
 ```bash
 yamllint changelogs/fragments/*.yml
 ```
 
+## Script Files
+
+This skill includes Python scripts in `scripts/`:
+
+- `generate-release-summary.py` - Auto-generate release summary with proper backticks
+- `update-galaxy-version.py` - Update galaxy.yml version field
+
+Both scripts support virtual environment activation and include dependency checks.
+
 ## Integration
 
 This skill integrates with:
-- `stable-release-analyze` - Analyzes pending releases (run before this)
+- `release-analyze` - Analyzes pending releases (run before this)
 - `docs-generate` - Generates documentation (run after this)
-- `tox-lint` - Runs linters (run after this)
+- `lint` - Runs linters (run after this)
 - `sanity` - Runs sanity tests (run after this)
 
 ## Exit Codes
@@ -340,3 +449,18 @@ This skill integrates with:
 - `0`: Release prep successful
 - `1`: Preparation failed (git errors, validation failures)
 - `2`: Invalid parameters or configuration
+
+## Output Format
+
+Present each step as a numbered section:
+1. What the step does
+2. The command(s) to run
+3. What to verify before proceeding
+
+Show final status with:
+- ✅ Branch created: `prep_vVERSION`
+- ✅ galaxy.yml updated: `CURRENT_VERSION` → `VERSION`
+- ✅ Release summary created
+- ✅ CHANGELOG generated
+
+List changed files and provide clear next steps.
