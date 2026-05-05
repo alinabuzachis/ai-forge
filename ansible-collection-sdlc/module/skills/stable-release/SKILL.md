@@ -29,23 +29,19 @@ Complete end-to-end release workflow for collections with stable-X branches.
 
 ## Purpose
 
-Orchestrates all release steps from analysis to PR creation for stable-branch workflows. Imports and coordinates
-individual skills (stable-release-analyze, stable-release-prep, docs-generate, tox-lint, sanity) in the correct
-order with proper error handling and user interaction.
+Orchestrates all release steps from analysis to PR creation for stable-branch workflows. Imports and coordinates individual skills (stable-release-analyze, stable-release-prep, docs-generate, tox-lint, sanity) in the correct order with proper error handling and user interaction.
 
 ## File Operations - Batch Processing
 
 **CRITICAL**: This orchestrator must minimize permission prompts by batching operations.
 
 **Key principles**:
-
 1. **Virtual environment first**: Set up .venv with all required dependencies (antsibull-changelog, ansible-core, tox)
 2. **Batch all file reads**: Read galaxy.yml, changelog fragments, and other files in ONE message with parallel tool calls
 3. **Parallel quality checks**: Run `/tox-lint` and `/sanity` in parallel using background agents
 4. **Sequential git operations**: Git operations via Bash tool are naturally batched in commands
 
 **Example flow**:
-
 ```
 Message 1: Setup venv with uv/pip (antsibull-changelog, ansible-core, tox)
 Message 2: Read galaxy.yml + all changelog fragments (parallel)
@@ -55,7 +51,6 @@ Message 5: Write/Edit files after analysis complete
 ```
 
 **Virtual environment setup** (use uv for speed):
-
 ```bash
 python3 -m venv .venv && source .venv/bin/activate && \
 (command -v uv &> /dev/null && \
@@ -66,7 +61,6 @@ python3 -m venv .venv && source .venv/bin/activate && \
 ## Configuration
 
 Reads from `~/.ansible-release.conf`:
-
 ```bash
 export GITHUB_USERNAME="alinabuzachis"
 export ANSIBLE_COLLECTIONS_PATH="~/dev/collections/ansible_collections"
@@ -96,6 +90,9 @@ export SANITY_ON_COMMIT="true"
 # Prepare specific version
 /stable-release --collection amazon.ai --version 1.0.1 --branch stable-1
 
+# Custom release date (future-dated or backdated)
+/stable-release --collection amazon.ai --version 1.0.1 --branch stable-1 --release-date 2026-06-15
+
 # Skip specific steps
 /stable-release --skip-lint --skip-sanity
 
@@ -111,7 +108,6 @@ export SANITY_ON_COMMIT="true"
 The orchestrator executes skills in this order:
 
 ### Step 1: Analyze (`stable-release-analyze`)
-
 **Purpose**: Determine if release is needed and calculate version
 
 ```bash
@@ -124,7 +120,6 @@ The orchestrator executes skills in this order:
 - Generates release plan
 
 **Output**:
-
 ```
 Branch: stable-1
 Current: 1.0.0 → Proposed: 1.0.1 (PATCH)
@@ -132,7 +127,6 @@ Reason: 1 bugfix fragment
 ```
 
 **Prompt** (unless `--auto`):
-
 ```
 Found pending release for stable-1 → v1.0.1
 Proceed with release? [Y/n]:
@@ -141,20 +135,19 @@ Proceed with release? [Y/n]:
 If `--analyze-only`: Stop here and exit.
 
 ### Step 2: Prepare (`stable-release-prep`)
-
 **Purpose**: Create release branch and update files
 
 ```bash
-/stable-release-prep --collection ${COLLECTION} --version ${VERSION} --branch ${BRANCH}
+/stable-release-prep --collection ${COLLECTION} --version ${VERSION} --branch ${BRANCH} \
+  ${RELEASE_DATE:+--release-date ${RELEASE_DATE}}
 ```
 
 - Creates `prep_vX.Y.Z` branch
 - Updates `galaxy.yml` version
 - Creates release summary fragment (with \`\`backticks\`\`)
-- Runs `antsibull-changelog release`
+- Runs `antsibull-changelog release` (with custom date if --release-date provided)
 
 **Output**:
-
 ```
 ✅ Branch created: prep_v1.0.1
 ✅ galaxy.yml updated: 1.0.0 → 1.0.1
@@ -162,7 +155,6 @@ If `--analyze-only`: Stop here and exit.
 ```
 
 **Prompt** (unless `--auto`):
-
 ```
 Review git diff before proceeding? [Y/n]:
 ```
@@ -170,7 +162,6 @@ Review git diff before proceeding? [Y/n]:
 If yes: Display `git diff --stat`
 
 ### Step 3: Documentation (`docs-generate`)
-
 **Purpose**: Update module documentation
 
 ```bash
@@ -182,7 +173,6 @@ If yes: Display `git diff --stat`
 - Updates README.md
 
 **Output**:
-
 ```
 ✅ Documentation updated (12 files)
 ```
@@ -190,7 +180,6 @@ If yes: Display `git diff --stat`
 Skip if `--skip-docs` flag provided.
 
 ### Step 4: Quality Checks (Parallel)
-
 **Purpose**: Validate code quality and tests
 
 **CRITICAL**: Execute in parallel using a SINGLE message with TWO Skill tool calls:
@@ -204,7 +193,6 @@ This batches permission requests and runs checks in parallel.
 ```
 
 Alternative using Agent tool (if Skill doesn't support parallel):
-
 ```bash
 # Launch both concurrently in same message
 Agent(skill="tox-lint", args="--path=${COLLECTION_PATH}", run_in_background=True)
@@ -214,7 +202,6 @@ Agent(skill="sanity", args="--mode=${SANITY_MODE} --path=${COLLECTION_PATH}", ru
 ```
 
 **Output**:
-
 ```
 Running quality checks...
   /tox-lint --path=${COLLECTION_PATH} (parallel)
@@ -225,7 +212,6 @@ Running quality checks...
 ```
 
 **On Failure**:
-
 ```
 ❌ Quality checks failed
 
@@ -247,7 +233,6 @@ Skip if `--skip-lint` or `--skip-sanity` flags provided.
 Continue despite failures if `--force` flag provided.
 
 ### Step 5: Commit & Push (`release-commit-push`)
-
 **Purpose**: Commit changes and push to fork
 
 ```bash
@@ -259,26 +244,22 @@ Continue despite failures if `--force` flag provided.
 - Pushes to origin (fork)
 
 **Output**:
-
 ```
 ✅ Committed: 46a848a
 ✅ Pushed to origin/prep_v1.0.1
 ```
 
 ### Step 6: Pull Request (Conditional)
-
 **Purpose**: Create PR to upstream
 
 Based on `AUTO_CREATE_PR` config or `--create-pr` flag:
 
 **If `AUTO_CREATE_PR=prompt`** (default):
-
 ```
 Create pull request now? [Y/n]:
 ```
 
 **If yes or `AUTO_CREATE_PR=true`**:
-
 ```bash
 gh pr create \
   --repo ${UPSTREAM_ORG}/${REPO} \
@@ -314,7 +295,6 @@ EOF
 ```
 
 **Output**:
-
 ```
 ✅ PR created: https://github.com/ansible-collections/amazon.ai/pull/42
 ```
@@ -396,7 +376,6 @@ Total time: 2m 34s
 ### Recoverable Errors
 
 **Lint/Sanity Failures**:
-
 ```
 Options:
   [r] Retry after fixing issues
@@ -407,7 +386,6 @@ Choice [r/s/a]:
 ```
 
 **Merge Conflicts**:
-
 ```
 ⚠️ Merge conflict detected while syncing stable-1
 
@@ -420,7 +398,6 @@ Abort workflow? [y/N]:
 ```
 
 **Network Errors**:
-
 ```
 ⚠️ Failed to push to origin (network error)
 
@@ -430,7 +407,6 @@ Retrying in 5 seconds... (attempt 2/3)
 ### Non-Recoverable Errors
 
 **Missing Configuration**:
-
 ```
 ❌ Error: GITHUB_USERNAME not set
 
@@ -442,7 +418,6 @@ Setup required:
 ```
 
 **Not a Git Repository**:
-
 ```
 ❌ Error: Not a git repository
 
@@ -465,13 +440,11 @@ State is tracked in `.ansible-release-state.json`:
 ```
 
 Resume workflow:
-
 ```bash
 /stable-release --resume
 ```
 
 Output:
-
 ```
 Resuming from last checkpoint...
 Last completed: docs-generate
@@ -480,22 +453,22 @@ Continuing with: quality checks
 
 ## Flags & Options
 
-| Flag               | Description                                        |
-|--------------------|----------------------------------------------------|
-| `--analyze-only`   | Run analysis and stop                              |
-| `--skip-lint`      | Skip linting step                                  |
-| `--skip-sanity`    | Skip sanity testing                                |
-| `--skip-docs`      | Skip documentation generation                      |
-| `--force`          | Continue even if quality checks fail               |
-| `--auto`           | No interactive prompts (use config defaults)       |
-| `--create-pr`      | Automatically create PR                            |
-| `--dry-run`        | Show what would happen without making changes      |
-| `--resume`         | Resume from last successful step                   |
+| Flag | Description |
+|------|-------------|
+| `--analyze-only` | Run analysis and stop |
+| `--release-date YYYY-MM-DD` | Custom release date (default: today) |
+| `--skip-lint` | Skip linting step |
+| `--skip-sanity` | Skip sanity testing |
+| `--skip-docs` | Skip documentation generation |
+| `--force` | Continue even if quality checks fail |
+| `--auto` | No interactive prompts (use config defaults) |
+| `--create-pr` | Automatically create PR |
+| `--dry-run` | Show what would happen without making changes |
+| `--resume` | Resume from last successful step |
 
 ## Integration Points
 
 This orchestrator imports:
-
 - `/stable-release-analyze` - Determine version needed
 - `/stable-release-prep` - Create branch and changelog
 - `/docs-generate` - Update documentation
@@ -506,21 +479,18 @@ This orchestrator imports:
 ## Requirements
 
 ### System Requirements
-
 - `git` with configured remotes
 - `tox` with lint and add_docs environments
 - `antsibull-changelog` installed
 - `gh` CLI (for PR creation)
 
 ### Repository Requirements
-
 - Git remotes: `origin` (fork), `upstream` (canonical)
 - `galaxy.yml` with valid version
 - `tox.ini` with lint and add_docs envs
 - `changelogs/fragments/` with at least one fragment
 
 ### Configuration Requirements
-
 - `~/.ansible-release.conf` with GITHUB_USERNAME
 - SSH keys or HTTPS credentials for GitHub
 
@@ -536,7 +506,6 @@ This orchestrator imports:
 ### Parallel Execution
 
 Run lint and sanity concurrently for speed:
-
 ```python
 # Use Claude Code's ability to run agents in parallel
 Agent(skill="tox-lint", args="--path=${COLLECTION_PATH}", run_in_background=True)
@@ -576,7 +545,6 @@ def clear_state():
 ### User Interaction
 
 Provide clear prompts and progress:
-
 - Show step numbers [1/6], [2/6], etc.
 - Use status indicators: ✅ ❌ ⚠️
 - Provide actionable error messages
@@ -586,7 +554,6 @@ Provide clear prompts and progress:
 ### Cloud Content Handbook Compliance
 
 Follow handbook guidelines:
-
 - Use double backticks for module names
 - Standard commit message format
 - Co-Authored-By: Claude attribution
