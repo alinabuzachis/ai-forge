@@ -41,7 +41,7 @@ def get_modules_from_fragments(fragments_dir: Path) -> List[str]:
 
     for fragment_file in fragment_files:
         try:
-            content = fragment_file.read_text()
+            content = fragment_file.read_text(encoding='utf-8')
 
             # Extract module names from fragment entries
             # Pattern: "module_name - description" or "module_name-description"
@@ -90,7 +90,7 @@ def analyze_fragment_types(fragments_dir: Path) -> dict:
 
     for fragment_file in fragment_files:
         try:
-            content = fragment_file.read_text()
+            content = fragment_file.read_text(encoding='utf-8')
 
             if re.search(r'^(breaking_changes|removed_features):', content, re.MULTILINE):
                 types['breaking'] = True
@@ -184,8 +184,9 @@ def main() -> int:
         summary = generate_summary(types, modules)
 
     # Create release summary fragment
+    # Use folded block scalar with strip (>-) to avoid blank lines and quotes in changelog.yaml
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(f"release_summary: |\n  {summary}\n")
+    output_file.write_text(f"release_summary: >-\n  {summary}\n", encoding='utf-8')
 
     print(summary)
     print(f"Created: {output_file}", file=sys.stderr)

@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Check for required dependencies before importing
 try:
@@ -106,7 +106,7 @@ def get_collection_info(collection_path: Path) -> Dict[str, str]:
         print(f"{Colors.RED}Error: Not an Ansible collection (galaxy.yml not found){Colors.RESET}", file=sys.stderr)
         sys.exit(1)
 
-    with open(galaxy_yml) as f:
+    with open(galaxy_yml, encoding='utf-8') as f:
         data = yaml.safe_load(f)
 
     return {
@@ -141,7 +141,7 @@ def get_stable_branches(collection_path: Path, upstream: str = "upstream") -> Li
         return []
 
 
-def check_branch(branch: str, collection_path: Path) -> Tuple[str, Dict[str, any]]:
+def check_branch(branch: str, collection_path: Path) -> Tuple[str, Dict[str, Any]]:
     """Check a single branch for release needs."""
     try:
         # Checkout branch
@@ -207,7 +207,7 @@ def check_branch(branch: str, collection_path: Path) -> Tuple[str, Dict[str, any
 
     for fragment in fragments:
         try:
-            with open(fragment) as f:
+            with open(fragment, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
             if not data:
@@ -231,8 +231,8 @@ def check_branch(branch: str, collection_path: Path) -> Tuple[str, Dict[str, any
         except Exception as e:
             print(f"{Colors.YELLOW}Warning: Could not parse {fragment.name}: {e}{Colors.RESET}", file=sys.stderr)
 
-    # Calculate next version
-    version_match = re.match(r'(\d+)\.(\d+)\.(\d+)', last_tag)
+    # Calculate next version (handle optional 'v' prefix like v1.0.0)
+    version_match = re.match(r'v?(\d+)\.(\d+)\.(\d+)', last_tag)
     if not version_match:
         return "ERROR", {"message": f"Invalid version format: {last_tag}"}
 
