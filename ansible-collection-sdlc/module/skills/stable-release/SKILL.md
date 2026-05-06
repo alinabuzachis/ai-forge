@@ -255,7 +255,7 @@ Continue despite failures if `--force` flag provided.
 **Purpose**: Commit changes and push to fork
 
 ```bash
-/stable-release-commit-push
+git commit and git push
 ```
 
 - Stages release files
@@ -364,7 +364,7 @@ Reference: https://github.com/ansible-collections/cloud-content-handbook
       ✅ sanity: All tests passed (45.3s)
 
 [5/6] Committing and pushing...
-      Running: /stable-release-commit-push
+      Running: git commit and git push
 
       ✅ Committed: 46a848a
       ✅ Pushed to origin/prep_v1.0.1
@@ -506,7 +506,7 @@ This orchestrator imports:
 - `/docs-generate` - Update documentation
 - `/tox-lint` - Run linters
 - `/sanity` - Run sanity tests
-- `/stable-release-commit-push` - Commit and push
+- `git commit and git push` - Commit and push
 
 ## Requirements
 

@@ -154,7 +154,7 @@ Example: `prep_v1.0.1`
 Use the Edit tool or sed to update the version field:
 
 ```bash
-sed -i '' "s/^version: .*/version: VERSION/" galaxy.yml
+sed -i.bak "s/^version: .*/version: VERSION/" galaxy.yml
 ```
 
 Or use the update-galaxy-version.py script:
@@ -173,7 +173,7 @@ cd SKILL_DIR && source .venv/bin/activate && \
 Create `changelogs/fragments/VERSION.yml`:
 
 ```yaml
-release_summary: >
+release_summary: >-
   This patch release includes bugfixes for the ``module_name`` module
   and improvements to the ``other_module`` module for better error handling.
 ```
@@ -393,7 +393,7 @@ Per cloud-content-handbook guidelines, wrap all module/plugin/collection names i
 **✅ Correct:**
 
 ```yaml
-release_summary: >
+release_summary: >-
   This release includes updates to the ``my_module`` and ``other_module``
   modules for better ``aws_service`` integration.
 ```
@@ -401,7 +401,7 @@ release_summary: >
 **❌ Incorrect (missing backticks):**
 
 ```yaml
-release_summary: >
+release_summary: >-
   This release includes updates to the my_module and other_module
   modules for better aws_service integration.
 ```
