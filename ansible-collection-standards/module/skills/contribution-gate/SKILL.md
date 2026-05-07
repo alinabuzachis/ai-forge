@@ -8,15 +8,21 @@ argument-hint: "[--pr <number>] [--diff <path>] [--ci]"
 
 Evaluates pull request content against ai-forge quality rules, attribution requirements, safety standards, and community guidelines. Produces a structured assessment formatted as a GitHub PR comment with a clear verdict and action items.
 
+**Complementary to existing CI:** This skill focuses on checks that require AI reasoning and contextual understanding. It works alongside existing automated CI checks:
+- **lint.yml** handles markdown/YAML/shell syntax
+- **validate.yml** handles frontmatter structure, file references, placeholder detection
+- **contribution-gate** handles quality assessment, safety context, attribution analysis
+
 This skill runs in two modes:
 - **Interactive:** Manually check a PR before submitting
 - **CI:** When `--ci` is passed, runs autonomously and emits structured JSON with `verdict` and `report` for CI workflow consumption. The `--pr <number>` flag is required in CI mode.
 
 This skill requires AI reasoning to:
-- Analyze each new or modified skill/command for quality
-- Determine whether instructions could violate safety standards
-- Identify missing attribution or testing evidence
-- Assess community guideline compliance
+- Assess documentation quality and clarity (not just presence)
+- Evaluate tool usage safety in context (is this destructive operation justified?)
+- Verify testing evidence is meaningful (not just checkbox-checked)
+- Determine if AI attribution is needed based on content patterns
+- Identify safety issues that depend on workflow understanding
 
 **Review required** — the output is a quality assessment that should be verified by a human reviewer.
 
@@ -68,16 +74,16 @@ Skip other files (workflows, docs, README, etc.).
 
 For each identified file, evaluate against the rule categories below. Each rule has explicit decision criteria — apply the rule ONLY when the diff matches the specified patterns.
 
-### Quality Rules (Q1-Q6)
+**Note:** Automated CI (lint.yml, validate.yml) already checks frontmatter structure, YAML syntax, and placeholder usage. This gate focuses on contextual analysis.
+
+### Quality Rules (Q1-Q4)
 
 | Rule | FAIL when | PASS otherwise |
 |------|-----------|----------------|
-| **Q1: Skill Structure** | Missing required frontmatter fields (`description`, `allowed-tools`, `argument-hint` for skills; `description`, `argument-hint` for commands) OR malformed YAML in frontmatter | All required fields present and valid YAML |
-| **Q2: Documentation** | No usage examples OR unclear purpose in description OR missing step descriptions in skill body | Clear documentation with examples and steps |
-| **Q3: Tool Usage** | Uses tools not declared in `allowed-tools` OR uses dangerous patterns (`rm -rf /`, `eval` on user input, arbitrary code execution) | Safe tool usage, all tools declared |
-| **Q4: Lola Compatibility** | Non-standard frontmatter (missing YAML delimiters `---`) OR assistant-specific features without fallback OR incompatible with Lola package manager | Standard frontmatter, works with Lola |
-| **Q5: Ansible Standards** | For Ansible-related skills: violates naming conventions (namespace.collection), incorrect galaxy.yml structure, or semantic versioning issues | Follows Ansible standards or not Ansible-specific |
-| **Q6: Testing Evidence** | No test scenarios described OR no execution evidence in PR description (for new skills/commands) | Test scenarios and results documented in PR |
+| **Q1: Documentation Quality** | No usage examples OR unclear purpose in description OR missing step descriptions in skill body | Clear documentation with examples and steps |
+| **Q2: Tool Usage Safety** | Uses dangerous patterns (`rm -rf /`, `eval` on user input, arbitrary code execution) without justification or confirmation | Safe tool usage or dangerous operations properly guarded |
+| **Q3: Ansible Standards** | For Ansible-related skills: violates naming conventions (namespace.collection), incorrect galaxy.yml structure, or semantic versioning issues | Follows Ansible standards or not Ansible-specific |
+| **Q4: Testing Evidence** | No test scenarios described OR no execution evidence in PR description (for new skills/commands) | Test scenarios and results documented in PR |
 
 ### Attribution Rules (A1-A3)
 
@@ -96,13 +102,12 @@ For each identified file, evaluate against the rule categories below. Each rule 
 | **S3: External Data** | Processing external data (APIs, web scraping) without validation OR sending user data to unapproved external services | Validation present or approved services only |
 | **S4: Code Execution** | Executing arbitrary user-provided input without sandboxing OR downloading and running untrusted code | Sandboxed execution or trusted sources only |
 
-### Community Rules (C1-C3)
+### Community Rules (C1-C2)
 
 | Rule | FAIL when | PASS otherwise |
 |------|-----------|----------------|
 | **C1: Licensing** | New code files without GPL-3.0-or-later license header (check for files with substantial code, not just skill markdown) | License header present or no new code files |
-| **C2: Real Data** | Real usernames, emails, project names, or credentials in examples. Use placeholders: `<token>`, `user@example.com`, `YOUR_USERNAME`, `example-org/example-repo` | Placeholders used in all examples |
-| **C3: Offensive Content** | Offensive language, discriminatory content, inappropriate examples, or violations of Code of Conduct | Professional and inclusive language |
+| **C2: Offensive Content** | Offensive language, discriminatory content, inappropriate examples, or violations of Code of Conduct | Professional and inclusive language |
 
 ## Step 5: Generate Per-File Assessment
 
@@ -125,8 +130,8 @@ Combine all per-file results:
 
 **Verdict logic:**
 
-1. **CHANGES REQUIRED** — Any S1-S4 or C1-C3 violation in any file
-2. **MINOR ISSUES** — Q1-Q6 or A1-A3 violations only (no S or C violations)
+1. **CHANGES REQUIRED** — Any S1-S4 or C1-C2 violation in any file
+2. **MINOR ISSUES** — Q1-Q4 or A1-A3 violations only (no S or C violations)
 3. **APPROVED** — No violations found across any file
 
 **CI mode verdict mapping** (for JSON output):
@@ -135,6 +140,8 @@ Combine all per-file results:
 - `CHANGES REQUIRED` → `CHANGES_REQUESTED`
 
 Rationale: Minor issues (quality/attribution) are fixable and shouldn't block merge. Safety/community violations must be fixed first.
+
+**Note:** Existing CI checks (lint.yml, validate.yml) run independently. This gate assumes those pass or will be fixed separately.
 
 ## Step 7: Format Output
 
@@ -148,10 +155,13 @@ Format the result as a GitHub PR comment in Markdown:
 ### Summary
 | Check Category | Result |
 |---------------|--------|
-| Quality Rules (Q1-Q6) | X/6 passed |
+| Quality Rules (Q1-Q4) | X/4 passed |
 | Attribution Rules (A1-A3) | X/3 passed |
 | Safety Rules (S1-S4) | X/4 passed |
-| Community Rules (C1-C3) | X/3 passed |
+| Community Rules (C1-C2) | X/2 passed |
+| **Total** | **X/13 passed** |
+
+**Note:** Existing CI checks (lint.yml, validate.yml) separately verify frontmatter structure, YAML syntax, and placeholder usage.
 
 ### Findings
 
@@ -161,7 +171,7 @@ Format the result as a GitHub PR comment in Markdown:
 
 [If MINOR ISSUES:]
 **Quality improvements recommended:**
-- Q2: Add usage examples to skill documentation
+- Q1: Add usage examples to skill documentation
 - A1: Add Co-Authored-By trailer to commits
 
 These can be addressed in a follow-up PR or before merge.
@@ -169,10 +179,12 @@ These can be addressed in a follow-up PR or before merge.
 [If CHANGES REQUIRED:]
 **Required fixes before merge:**
 - S2: Add confirmation step for destructive git operations
-- C2: Replace real email addresses with placeholders
+- C2: Remove offensive or inappropriate language
 
 [If APPROVED:]
 **No issues found.** All quality, attribution, safety, and community standards met.
+
+**Remember:** Existing CI (lint.yml, validate.yml) handles syntax and structure checks separately.
 
 ---
 *Automated quality check — not a substitute for human review.*
@@ -209,10 +221,13 @@ If not in CI mode, present the formatted output to the user for review.
 ### Summary
 | Check Category | Result |
 |---------------|--------|
-| Quality Rules (Q1-Q6) | 6/6 passed |
+| Quality Rules (Q1-Q4) | 4/4 passed |
 | Attribution Rules (A1-A3) | 3/3 passed |
 | Safety Rules (S1-S4) | 4/4 passed |
-| Community Rules (C1-C3) | 3/3 passed |
+| Community Rules (C1-C2) | 2/2 passed |
+| **Total** | **13/13 passed** |
+
+**Note:** Existing CI checks (lint.yml, validate.yml) separately verify frontmatter structure, YAML syntax, and placeholder usage.
 
 ### Findings
 
@@ -220,12 +235,10 @@ If not in CI mode, present the formatted output to the user for review.
 
 | Rule | Status | Finding |
 |------|--------|---------|
-| Q1 | ✅ PASS | Required frontmatter present |
-| Q2 | ✅ PASS | Clear documentation with examples |
-| Q3 | ✅ PASS | All tools declared in allowed-tools |
-| Q4 | ✅ PASS | Standard frontmatter, Lola-compatible |
-| Q5 | ✅ PASS | Follows Ansible naming conventions |
-| Q6 | ✅ PASS | Test scenarios documented in PR |
+| Q1 | ✅ PASS | Clear documentation with examples |
+| Q2 | ✅ PASS | Safe tool usage patterns |
+| Q3 | ✅ PASS | Follows Ansible naming conventions |
+| Q4 | ✅ PASS | Test scenarios documented in PR |
 | A1 | ✅ PASS | Co-Authored-By trailer present |
 | A2 | ✅ PASS | Review step present for generated content |
 | A3 | ✅ PASS | No misleading attribution |
@@ -234,8 +247,7 @@ If not in CI mode, present the formatted output to the user for review.
 | S3 | ✅ PASS | External data validated |
 | S4 | ✅ PASS | No arbitrary code execution |
 | C1 | ✅ PASS | No new code files requiring license |
-| C2 | ✅ PASS | Uses placeholder data in examples |
-| C3 | ✅ PASS | Professional and inclusive language |
+| C2 | ✅ PASS | Professional and inclusive language |
 
 ### Action Items
 
@@ -255,10 +267,13 @@ If not in CI mode, present the formatted output to the user for review.
 ### Summary
 | Check Category | Result |
 |---------------|--------|
-| Quality Rules (Q1-Q6) | 5/6 passed |
+| Quality Rules (Q1-Q4) | 3/4 passed |
 | Attribution Rules (A1-A3) | 2/3 passed |
 | Safety Rules (S1-S4) | 4/4 passed |
-| Community Rules (C1-C3) | 3/3 passed |
+| Community Rules (C1-C2) | 2/2 passed |
+| **Total** | **11/13 passed** |
+
+**Note:** Existing CI checks (lint.yml, validate.yml) separately verify frontmatter structure, YAML syntax, and placeholder usage.
 
 ### Findings
 
@@ -266,22 +281,20 @@ If not in CI mode, present the formatted output to the user for review.
 
 | Rule | Status | Finding |
 |------|--------|---------|
-| Q1 | ✅ PASS | Required frontmatter present |
-| Q2 | ❌ FAIL | No usage examples in documentation |
-| Q3 | ✅ PASS | All tools declared |
-| Q4 | ✅ PASS | Lola-compatible frontmatter |
-| Q5 | ✅ PASS | Follows Ansible standards |
-| Q6 | ✅ PASS | Test results in PR description |
+| Q1 | ❌ FAIL | No usage examples in documentation |
+| Q2 | ✅ PASS | Safe tool usage patterns |
+| Q3 | ✅ PASS | Follows Ansible standards |
+| Q4 | ✅ PASS | Test results in PR description |
 | A1 | ❌ FAIL | Commit "Add changelog helper" appears AI-assisted but lacks Co-Authored-By trailer |
 | A2 | ✅ PASS | Review step present |
 | A3 | ✅ PASS | No misleading attribution |
 | S1-S4 | ✅ PASS | All safety checks passed |
-| C1-C3 | ✅ PASS | All community checks passed |
+| C1-C2 | ✅ PASS | All community checks passed |
 
 ### Action Items
 
 **Quality improvements recommended:**
-- **Q2 Documentation**: Add usage examples showing how to invoke `/changelog-helper`
+- **Q1 Documentation Quality**: Add usage examples showing how to invoke `/changelog-helper`
 - **A1 Commit Attribution**: Add Co-Authored-By trailer to commits if AI-assisted:
   ```
   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
@@ -303,10 +316,13 @@ These can be addressed before merge or in a follow-up PR.
 ### Summary
 | Check Category | Result |
 |---------------|--------|
-| Quality Rules (Q1-Q6) | 6/6 passed |
+| Quality Rules (Q1-Q4) | 4/4 passed |
 | Attribution Rules (A1-A3) | 3/3 passed |
 | Safety Rules (S1-S4) | 3/4 passed |
-| Community Rules (C1-C3) | 2/3 passed |
+| Community Rules (C1-C2) | 1/2 passed |
+| **Total** | **11/13 passed** |
+
+**Note:** Existing CI checks (lint.yml, validate.yml) separately verify frontmatter structure, YAML syntax, and placeholder usage.
 
 ### Findings
 
@@ -314,15 +330,14 @@ These can be addressed before merge or in a follow-up PR.
 
 | Rule | Status | Finding |
 |------|--------|---------|
-| Q1-Q6 | ✅ PASS | All quality checks passed |
+| Q1-Q4 | ✅ PASS | All quality checks passed |
 | A1-A3 | ✅ PASS | All attribution checks passed |
 | S1 | ✅ PASS | No credential exposure |
 | S2 | ❌ FAIL | Destructive operation `rm -rf .git` without confirmation step |
 | S3 | ✅ PASS | External data validated |
 | S4 | ✅ PASS | No arbitrary code execution |
 | C1 | ✅ PASS | No new code files |
-| C2 | ❌ FAIL | Real email address in example: `alice@redhat.com` should be `user@example.com` |
-| C3 | ✅ PASS | Professional language |
+| C2 | ❌ FAIL | Offensive language detected in example command names |
 
 ### Action Items
 
@@ -334,7 +349,7 @@ These can be addressed before merge or in a follow-up PR.
    "This will delete the .git directory. Continue? [y/N]"
    ```
 
-2. **C2 Real Data**: Replace `alice@redhat.com` with a placeholder like `user@example.com`
+2. **C2 Offensive Content**: Replace inappropriate language in examples with professional alternatives
 
 ---
 *Automated quality check — not a substitute for human review.*
