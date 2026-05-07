@@ -1,0 +1,178 @@
+name: Contribution Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - '*/module/skills/*/SKILL.md'
+      - '*/module/commands/*.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  contribution-check:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR metadata
+        id: pr-info
+        run: |
+          echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
+
+      - name: Check for changed skills/commands
+        id: changed-files
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD -- \
+            '*/module/skills/*/SKILL.md' \
+            '*/module/commands/*.md' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No skill or command files modified"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+          fi
+
+      # This step would invoke the contribution-gate skill via AI assistant
+      # Currently this requires manual invocation or a future GitHub Action
+      - name: Run contribution gate (manual for now)
+        if: steps.changed-files.outputs.has_changes == 'true'
+        id: gate-check
+        run: |
+          echo "::notice::Contribution gate check required"
+          echo "::notice::A maintainer will review this PR using /contribution-gate --pr ${{ steps.pr-info.outputs.pr_number }}"
+
+          # Future implementation would call:
+          # - Anthropic API with contribution-gate skill
+          # - Parse JSON output: {"verdict": "APPROVED", "report": "..."}
+          # - Post report as PR comment
+
+          # For now, we'll create a comment asking for manual review
+          cat > gate-comment.md <<'EOF'
+          ## Contribution Gate Review Required
+
+          A maintainer will review this PR for quality, attribution, safety, and community standards.
+
+          **Automated check not yet implemented.** A maintainer will manually run:
+          ```bash
+          /contribution-gate --pr ${{ steps.pr-info.outputs.pr_number }}
+          ```
+
+          ---
+          *This check will be automated in a future update.*
+          EOF
+
+          echo "comment_file=gate-comment.md" >> $GITHUB_OUTPUT
+
+      # Post comment to PR (when automated check is implemented)
+      - name: Post gate review comment
+        if: steps.changed-files.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commentFile = '${{ steps.gate-check.outputs.comment_file }}';
+
+            if (fs.existsSync(commentFile)) {
+              const comment = fs.readFileSync(commentFile, 'utf8');
+
+              // Check if we already posted a comment
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number
+              });
+
+              const botComment = comments.data.find(c =>
+                c.user.login === 'github-actions[bot]' &&
+                c.body.includes('Contribution Gate Review')
+              );
+
+              if (botComment) {
+                // Update existing comment
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: comment
+                });
+              } else {
+                // Create new comment
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: comment
+                });
+              }
+            }
+
+      - name: Summary
+        if: steps.changed-files.outputs.has_changes == 'true'
+        run: |
+          echo "### Contribution Gate Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "PR #${{ steps.pr-info.outputs.pr_number }} by @${{ steps.pr-info.outputs.pr_author }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A maintainer will review this PR using the contribution-gate skill." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** Automated contribution gate checks are not yet implemented." >> $GITHUB_STEP_SUMMARY
+          echo "This will be added in a future update when AI skill invocation in CI is available." >> $GITHUB_STEP_SUMMARY
+
+      - name: No changes detected
+        if: steps.changed-files.outputs.has_changes == 'false'
+        run: |
+          echo "### Contribution Gate Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ No skill or command files modified - check skipped" >> $GITHUB_STEP_SUMMARY
+
+# Future implementation notes:
+#
+# When AI skill invocation becomes available in CI (via Anthropic API or GitHub Action),
+# this workflow should:
+#
+# 1. Install required dependencies (Lola, Claude SDK, etc.)
+# 2. Invoke the contribution-gate skill:
+#    /contribution-gate --ci --pr ${{ github.event.pull_request.number }}
+# 3. Parse JSON output: {"verdict": "APPROVED|CHANGES_REQUESTED", "report": "markdown"}
+# 4. Post the report as a PR comment
+# 5. Set check status based on verdict:
+#    - APPROVED -> success
+#    - CHANGES_REQUESTED -> failure (blocks merge if required)
+#
+# Example implementation with Anthropic API:
+#
+# - name: Run contribution gate
+#   env:
+#     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#   run: |
+#     python3 .github/scripts/run-contribution-gate.py \
+#       --pr ${{ github.event.pull_request.number }} \
+#       --output gate-result.json
+#
+# - name: Parse result and post comment
+#   run: |
+#     VERDICT=$(jq -r '.verdict' gate-result.json)
+#     REPORT=$(jq -r '.report' gate-result.json)
+#
+#     # Post comment with report
+#     gh pr comment ${{ github.event.pull_request.number }} --body "$REPORT"
+#
+#     # Exit with appropriate code
+#     if [ "$VERDICT" = "CHANGES_REQUESTED" ]; then
+#       echo "::error::Contribution gate check failed - changes required"
+#       exit 1
+#     fi
