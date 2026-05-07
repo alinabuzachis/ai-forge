@@ -1,4 +1,5 @@
 ---
+name: aws-terminator-implement
 description: Implement terminator classes and IAM permissions in aws-terminator repository based on analysis
 allowed-tools: Read, Edit, Write, Bash(command:git *), Bash(command:gh *), Bash(command:grep *)
 argument-hint: "[--analysis <file>] [--interactive]"
@@ -11,6 +12,7 @@ Implements terminator classes and IAM permissions in the mattclay/aws-terminator
 ## Purpose
 
 After analyzing an Ansible collection PR with `/aws-terminator-analyze`, this skill:
+
 1. Creates terminator class implementations in the appropriate file
 2. Adds IAM permissions to the appropriate policy file
 3. Follows aws-terminator patterns and conventions
@@ -73,6 +75,7 @@ If `--analysis <file>` provided, read the analysis file.
 Otherwise, use context from previous `/aws-terminator-analyze` invocation in this conversation.
 
 **Required information**:
+
 - Resource types to add terminators for
 - AWS service boto3 client name
 - Resource properties (id, name, created_time fields)
@@ -81,6 +84,7 @@ Otherwise, use context from previous `/aws-terminator-analyze` invocation in thi
 - Policy file to modify (compute.yaml, application-services.yaml, etc.)
 
 **If missing context**, prompt user for:
+
 ```
 I need the following information to implement terminators:
 
@@ -109,6 +113,7 @@ For each resource type, generate and add the terminator class.
 ```
 
 **Decision**:
+
 - Has timestamp → use `Terminator` base class
 - No timestamp → use `DbTerminator` base class
 
@@ -189,6 +194,7 @@ cd ~/dev/aws-terminator
 ```
 
 **Use Edit tool** to add the class:
+
 - Read the terminator file
 - Find insertion point (alphabetically by class name)
 - Insert the new class code
@@ -196,6 +202,7 @@ cd ~/dev/aws-terminator
 ### Handle Special Cases
 
 **Pagination required**:
+
 ```python
 def get_resources(client):
     paginator = client.get_paginator('list_resources')
@@ -204,6 +211,7 @@ def get_resources(client):
 ```
 
 **Filter by account owner**:
+
 ```python
 from aws.terminator.util import get_account_id
 
@@ -213,6 +221,7 @@ def get_resources(client):
 ```
 
 **Flattening nested lists**:
+
 ```python
 def get_resources(client):
     return [item for group in client.describe_groups()['Groups'] 
@@ -220,6 +229,7 @@ def get_resources(client):
 ```
 
 **Pre-delete operations**:
+
 ```python
 def terminate(self):
     # Example: Stop resource before deleting
@@ -231,6 +241,7 @@ def terminate(self):
 ```
 
 **Ignore terminated/deleted resources**:
+
 ```python
 @property
 def ignore(self):
@@ -238,6 +249,7 @@ def ignore(self):
 ```
 
 **Custom age limit**:
+
 ```python
 @property
 def age_limit(self):
@@ -251,6 +263,7 @@ def age_limit(self):
 ### Determine Policy Structure
 
 **Permissions are grouped into blocks**:
+
 1. **Resource-scoped permissions** - Actions on specific ARNs
 2. **Global permissions** - List/Describe actions that require `Resource: "*"`
 
@@ -294,6 +307,7 @@ cd ~/dev/aws-terminator
 ```
 
 **Use Edit tool** to add permissions:
+
 - Find appropriate insertion point (alphabetically by Sid)
 - Insert new permission blocks
 - Ensure no duplicate permissions (check existing blocks first)
@@ -301,11 +315,13 @@ cd ~/dev/aws-terminator
 ### Permission Best Practices
 
 **Least privilege**:
+
 - Only add actions actually used by tests or terminators
 - Avoid wildcards like `Delete*` unless necessary
 - Scope resources to specific ARN patterns
 
 **Action naming patterns**:
+
 ```yaml
 # Prefer explicit actions
 - service:CreateFoo
@@ -317,6 +333,7 @@ cd ~/dev/aws-terminator
 ```
 
 **Resource ARN patterns**:
+
 ```yaml
 # Specific resource type
 Resource:
@@ -343,6 +360,7 @@ grep -n "^import " aws/terminator/<terminator-file>.py | head -10
 ```
 
 **Common imports**:
+
 ```python
 import datetime
 from aws.terminator import Terminator, DbTerminator
@@ -356,12 +374,14 @@ from aws.terminator.util import get_account_id
 ### Syntax Check
 
 **Python syntax**:
+
 ```bash
 cd ~/dev/aws-terminator
 python3 -m py_compile aws/terminator/<terminator-file>.py
 ```
 
 **YAML syntax**:
+
 ```bash
 cd ~/dev/aws-terminator
 python3 -c "import yaml; yaml.safe_load(open('aws/policy/<policy-file>.yaml'))"
@@ -375,6 +395,7 @@ tox
 ```
 
 Expected checks:
+
 - pycodestyle - Python style
 - pylint - Code quality
 - yamllint - YAML style
@@ -383,12 +404,14 @@ Expected checks:
 ### Check for Duplicates
 
 **Duplicate terminators**:
+
 ```bash
 grep -r "class <ResourceType>" aws/terminator/
 # Should only find the new one
 ```
 
 **Duplicate permissions**:
+
 ```bash
 grep -r "<service>:<action>" aws/policy/
 # Check if permission already exists elsewhere
@@ -530,6 +553,7 @@ Proceed with implementation? [Y/n]:
 ## Error Handling
 
 **aws-terminator not found**:
+
 ```
 Error: aws-terminator repository not found at ~/dev/aws-terminator
 
@@ -540,6 +564,7 @@ Then re-run this skill.
 ```
 
 **Dirty working tree**:
+
 ```
 Error: aws-terminator repository has uncommitted changes
 
@@ -550,6 +575,7 @@ Commit or stash changes first:
 ```
 
 **Missing analysis context**:
+
 ```
 Error: No analysis context found
 

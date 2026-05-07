@@ -1,4 +1,5 @@
 ---
+name: aws-terminator-workflow
 description: Complete end-to-end workflow for aws-terminator PR creation - analyze, implement, test, and submit
 allowed-tools: Skill(skill:aws-terminator-analyze), Skill(skill:aws-terminator-implement), Read, Write, Bash(command:git *), Bash(command:gh *), Bash(command:cd *), Bash(command:python3 *)
 argument-hint: "--pr <number> [--repo <owner/repo>] [--auto] [--skip-tests]"
@@ -11,6 +12,7 @@ Complete orchestrator for creating aws-terminator PRs when new AWS modules are a
 ## Purpose
 
 When a PR adds new AWS modules to an Ansible collection (amazon.aws, community.aws, etc.), this workflow:
+
 1. Analyzes what terminators and permissions are needed
 2. Implements the terminator classes and IAM permissions
 3. Runs validation tests
@@ -54,6 +56,7 @@ When a PR adds new AWS modules to an Ansible collection (amazon.aws, community.a
 ```
 
 **Output**: Analysis report with:
+
 - Resources being added
 - Terminator coverage status
 - IAM permissions needed
@@ -62,6 +65,7 @@ When a PR adds new AWS modules to an Ansible collection (amazon.aws, community.a
 **Checkpoint**: If `--check` mode, stop here and present analysis only.
 
 **Prompt** (unless `--auto`):
+
 ```
 Analysis complete. Found:
 - N resource types need terminators
@@ -83,6 +87,7 @@ gh pr view <PR_NUMBER> --repo <REPO> --json body | \
 **If existing terminator PR found**:
 
 **Prompt** (unless `--auto`):
+
 ```
 Found existing terminator PR: #<TERMINATOR_PR_NUMBER>
 Status: <open/merged/closed>
@@ -139,12 +144,14 @@ git checkout -b "$BRANCH_NAME"
 This uses context from the analysis in Step 1.
 
 **Implementation performs**:
+
 - Creates terminator classes in appropriate `aws/terminator/*.py` files
 - Adds IAM permissions to appropriate `aws/policy/*.yaml` files
 - Follows aws-terminator code patterns
 - Validates syntax
 
 **Prompt** (unless `--auto`) after each resource:
+
 ```
 Implemented <ResourceType>Terminator in <file>.py
 Added <N> IAM permissions to <policy-file>.yaml
@@ -182,6 +189,7 @@ tox
 ```
 
 **Expected output**:
+
 ```
 pycodestyle: OK
 pylint: OK
@@ -193,6 +201,7 @@ congratulations :)
 **On tox failure**:
 
 **Prompt** (unless `--auto`):
+
 ```
 Tox validation failed:
 <error output>
@@ -321,6 +330,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 **Push to origin** (your fork):
 
 **Prompt** (unless `--auto`):
+
 ```
 Ready to push branch '<BRANCH_NAME>' to origin
 
@@ -479,7 +489,7 @@ export AWS_TERMINATOR_AUTO="true"
 ## Flags
 
 | Flag | Description |
-|------|-------------|
+| ---- | ----------- |
 | `--pr <number>` | **Required** - Ansible collection PR number |
 | `--repo <owner/repo>` | Repository (default: ansible-collections/community.aws) |
 | `--auto` | No prompts, automatic decisions |
@@ -492,21 +502,26 @@ export AWS_TERMINATOR_AUTO="true"
 ### Analysis Failures
 
 **No modules found**:
+
 ```
 Analysis complete: No new modules found in PR
 No aws-terminator changes needed.
 ```
+
 **Action**: Exit gracefully, no work to do.
 
 **Analysis errors**:
+
 ```
 Error during analysis: <error message>
 ```
+
 **Action**: Display error, offer to retry or abort.
 
 ### Implementation Failures
 
 **Syntax errors**:
+
 ```
 Python syntax error in aws/terminator/application_services.py:
   File "...", line 123
@@ -514,28 +529,35 @@ Python syntax error in aws/terminator/application_services.py:
                       ^
 SyntaxError: invalid syntax
 ```
+
 **Action**: Show error, offer to fix and retry.
 
 **Tox failures**:
+
 ```
 pylint failed:
   E1101: Module 'client' has no 'delete_foo' member
 ```
+
 **Action**: Show error, offer options (fix/skip/abort).
 
 ### Git/PR Failures
 
 **Push failures**:
+
 ```
 Error: failed to push branch
 Permission denied (publickey)
 ```
+
 **Action**: Show error, suggest checking gh auth status.
 
 **PR creation failures**:
+
 ```
 Error creating PR: GraphQL error
 ```
+
 **Action**: Show error, provide manual PR creation instructions.
 
 ## Recovery

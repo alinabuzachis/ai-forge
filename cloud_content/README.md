@@ -32,7 +32,7 @@ lola install cloud_content -a opencode
 ### Skills
 
 | Skill | Description |
-|-------|-------------|
+| ----- | ----------- |
 | `aws-terminator-analyze` | Analyze Ansible AWS collection PRs to determine required aws-terminator changes |
 | `aws-terminator-implement` | Implement terminator classes and IAM permissions in aws-terminator repository |
 | `aws-terminator-workflow` | End-to-end orchestrator: analyze → implement → test → PR creation |
@@ -72,7 +72,7 @@ Cloud collections share common development patterns:
 ### Planned Skills
 
 | Skill | Description |
-|-------|-------------|
+| ----- | ----------- |
 | `cloud-module-scaffold` | Generate cloud module boilerplate with proper SDK integration, pagination handling, and waiter patterns |
 | `cloud-inventory-plugin` | Scaffold dynamic inventory plugins for cloud providers with proper caching and filtering |
 | `cloud-auth-patterns` | Guide for implementing credential chain patterns (env vars → config files → instance metadata) |

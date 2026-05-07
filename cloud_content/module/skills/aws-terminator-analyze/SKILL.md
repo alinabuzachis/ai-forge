@@ -1,4 +1,5 @@
 ---
+name: aws-terminator-analyze
 description: Analyze an Ansible AWS collection PR to determine what aws-terminator resources and permissions are needed
 allowed-tools: Read, Bash(command:gh *), Bash(command:git *), Bash(command:grep *)
 argument-hint: "--pr <number> [--repo <owner/repo>]"
@@ -6,11 +7,13 @@ argument-hint: "--pr <number> [--repo <owner/repo>]"
 
 # AWS Terminator Analyze
 
-Analyzes a pull request from an Ansible AWS collection (amazon.aws, community.aws, amazon.ai, amazon.cloud) to determine what terminator classes and IAM permissions need to be added to the mattclay/aws-terminator repository.
+Analyzes a pull request from an Ansible AWS collection (amazon.aws, community.aws, amazon.ai, amazon.cloud) to determine what terminator classes and IAM
+permissions need to be added to the mattclay/aws-terminator repository.
 
 ## Purpose
 
 When new AWS modules are added to Ansible collections, the aws-terminator repository needs:
+
 1. **Terminator classes** to clean up resources created during integration tests
 2. **IAM permissions** for both the integration tests and the terminators
 
@@ -39,11 +42,13 @@ This skill automates the analysis to identify what's needed.
 ## Step 1: Validate Input
 
 Check required parameters:
+
 - `--pr <number>` is required
 - `--repo <owner/repo>` defaults to `ansible-collections/community.aws`
 - `--terminator-pr <number>` is optional (for checking existing terminator PR)
 
 Valid repositories:
+
 - `ansible-collections/amazon.aws`
 - `ansible-collections/community.aws`
 - `ansible-collections/amazon.ai`
@@ -56,6 +61,7 @@ gh pr view <PR_NUMBER> --repo <REPO> --json title,body,files,state
 ```
 
 Extract:
+
 - PR title and description
 - List of changed files
 - PR state (open/closed/merged)
@@ -72,11 +78,13 @@ gh api repos/<REPO>/pulls/<PR_NUMBER>/files --paginate | \
 ```
 
 **Extract module names**:
+
 - `plugins/modules/foo_bar.py` → `foo_bar` (creates FooBar resources)
 - `plugins/modules/foo_bar_info.py` → skip (info-only, no resources created)
 
 **AWS service detection**:
 Look for boto3 service client names in the module code:
+
 ```python
 client = module.client('service-name')  # e.g., 'medialive', 'rds', 'ec2'
 ```
@@ -91,6 +99,7 @@ gh api repos/<REPO>/pulls/<PR_NUMBER>/files --jq \
 ```
 
 **Look for create/launch/run patterns**:
+
 ```python
 # Resource creation indicators
 client.create_*()
@@ -101,6 +110,7 @@ client.register_*()
 ```
 
 **Extract resource type from API calls**:
+
 - `client.create_user_pool()` → UserPool resource
 - `client.create_cluster()` → Cluster resource
 - `client.run_instances()` → Instance resource
@@ -116,6 +126,7 @@ gh api repos/<REPO>/pulls/<PR_NUMBER>/files --paginate | \
 ```
 
 **Analyze test content** for:
+
 - Resource creation in setup/test blocks
 - Always blocks (cleanup attempts)
 - Wait conditions (indicates async resources)
@@ -142,6 +153,7 @@ grep -r "class MediaLive" aws/terminator/
 ```
 
 **Terminator file organization**:
+
 - `compute.py` - EC2, ASG, ELB, placement groups
 - `networking.py` - VPC, subnets, security groups
 - `paas.py` - Lambda, ECS, ECR, EKS
@@ -161,6 +173,7 @@ grep -r "service:Action" aws/policy/
 ```
 
 **Policy file organization** (same as terminator files):
+
 - `compute.yaml`
 - `networking.yaml`
 - `paas.yaml`
@@ -177,11 +190,13 @@ grep -r "service:Action" aws/policy/
 For each resource type, determine if a terminator is needed:
 
 **YES if**:
+
 - ✅ Resource is created by modules or integration tests
 - ✅ Resource persists after test (not auto-deleted)
 - ✅ No existing terminator class found
 
 **NO if**:
+
 - ❌ Resource is auto-deleted with parent (e.g., Cognito clients with user pools)
 - ❌ Resource is ephemeral (auto-expires)
 - ❌ Terminator already exists
@@ -189,9 +204,11 @@ For each resource type, determine if a terminator is needed:
 ### Terminator Base Class Selection
 
 **Use `Terminator` base class if**:
+
 - Resource API response has a timestamp field (`CreatedTime`, `LaunchTime`, `StartTime`, `CreationDate`)
 
 **Use `DbTerminator` base class if**:
+
 - Resource has NO creation timestamp field
 
 ### IAM Permissions Needed
@@ -199,10 +216,12 @@ For each resource type, determine if a terminator is needed:
 Determine required permissions:
 
 **From integration tests**:
+
 - Create/Modify/Delete operations from test tasks
 - Describe/List operations for idempotency checks
 
 **From terminators**:
+
 - Describe/List operations (for discovering resources)
 - Delete operations (for cleanup)
 - Any prerequisite operations (e.g., stop before delete)
@@ -216,6 +235,7 @@ gh pr view <TERMINATOR_PR> --repo mattclay/aws-terminator --json title,body,file
 ```
 
 Compare:
+
 - What terminators are in the existing PR
 - What permissions are in the existing PR
 - What's missing from the existing PR
@@ -355,6 +375,7 @@ def terminate(self):
 ## Output Format
 
 Present the analysis in a clear, structured format with:
+
 - Summary of resources being added
 - Terminator coverage status (✅ covered, ❌ missing, ⚠️ partial)
 - Specific code recommendations for missing terminators
@@ -365,12 +386,14 @@ Present the analysis in a clear, structured format with:
 ## Error Handling
 
 **PR not found**:
+
 ```
 Error: PR #<NUMBER> not found in <REPO>
 Check the PR number and repository name.
 ```
 
 **Not an AWS collection**:
+
 ```
 Error: <REPO> is not an AWS collection repository
 This skill only works with:
@@ -381,6 +404,7 @@ This skill only works with:
 ```
 
 **No module changes**:
+
 ```
 No new modules found in PR #<NUMBER>
 This PR does not add or modify modules in plugins/modules/
