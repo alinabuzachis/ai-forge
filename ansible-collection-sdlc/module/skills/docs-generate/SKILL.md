@@ -95,8 +95,8 @@ For stable-branch releases, manually correct links:
 **Fix command**:
 
 ```bash
-# For stable-11 release
-sed -i '' 's|/blob/main/docs/|/blob/stable-11/docs/|g' README.md
+# For stable-11 release (portable across macOS and Linux)
+sed -i.bak 's|/blob/main/docs/|/blob/stable-11/docs/|g' README.md && rm README.md.bak
 ```
 
 ## Troubleshooting
