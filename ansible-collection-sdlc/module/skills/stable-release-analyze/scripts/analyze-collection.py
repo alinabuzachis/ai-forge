@@ -2,6 +2,7 @@
 """Analyze Ansible collection stable branches for pending releases."""
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -30,14 +31,30 @@ except ImportError:
 
 
 class Colors:
-    """ANSI color codes."""
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
+    """ANSI color codes. Respects NO_COLOR environment variable."""
+
+    def __init__(self):
+        # Disable colors if NO_COLOR environment variable is set
+        if os.environ.get('NO_COLOR'):
+            self.RESET = ''
+            self.BOLD = ''
+            self.GREEN = ''
+            self.RED = ''
+            self.YELLOW = ''
+            self.BLUE = ''
+            self.CYAN = ''
+        else:
+            self.RESET = '\033[0m'
+            self.BOLD = '\033[1m'
+            self.GREEN = '\033[92m'
+            self.RED = '\033[91m'
+            self.YELLOW = '\033[93m'
+            self.BLUE = '\033[94m'
+            self.CYAN = '\033[96m'
+
+
+# Global Colors instance
+colors = Colors()
 
 
 def setup_collection_repo(collection_name: str) -> Path:
@@ -45,7 +62,7 @@ def setup_collection_repo(collection_name: str) -> Path:
     # Parse namespace.name
     match = re.match(r'^([a-z]+)\.([a-z_]+)$', collection_name)
     if not match:
-        print(f"{Colors.RED}Error: Invalid collection name format{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.RED}Error: Invalid collection name format{colors.RESET}", file=sys.stderr)
         sys.exit(2)
 
     namespace, name = match.groups()
@@ -65,7 +82,7 @@ def setup_collection_repo(collection_name: str) -> Path:
                 capture_output=True
             )
         except subprocess.CalledProcessError as e:
-            print(f"{Colors.RED}Error cloning: {e.stderr.decode()}{Colors.RESET}", file=sys.stderr)
+            print(f"{colors.RED}Error cloning: {e.stderr.decode()}{colors.RESET}", file=sys.stderr)
             sys.exit(1)
 
     # Update repository
@@ -91,7 +108,7 @@ def setup_collection_repo(collection_name: str) -> Path:
             check=True,
             capture_output=True
         )
-        print(f"{Colors.GREEN}✅{Colors.RESET} Repository updated", file=sys.stderr)
+        print(f"{colors.GREEN}✅{colors.RESET} Repository updated", file=sys.stderr)
     except subprocess.CalledProcessError:
         pass  # Continue anyway
 
@@ -103,7 +120,7 @@ def get_collection_info(collection_path: Path) -> Dict[str, str]:
     galaxy_yml = collection_path / "galaxy.yml"
 
     if not galaxy_yml.exists():
-        print(f"{Colors.RED}Error: Not an Ansible collection (galaxy.yml not found){Colors.RESET}", file=sys.stderr)
+        print(f"{colors.RED}Error: Not an Ansible collection (galaxy.yml not found){colors.RESET}", file=sys.stderr)
         sys.exit(1)
 
     with open(galaxy_yml, encoding='utf-8') as f:
@@ -229,7 +246,7 @@ def check_branch(branch: str, collection_path: Path) -> Tuple[str, Dict[str, Any
             fragment_details.append(f"{fragment.name}: {frag_type} (impact: {impact})")
 
         except Exception as e:
-            print(f"{Colors.YELLOW}Warning: Could not parse {fragment.name}: {e}{Colors.RESET}", file=sys.stderr)
+            print(f"{colors.YELLOW}Warning: Could not parse {fragment.name}: {e}{colors.RESET}", file=sys.stderr)
 
     # Calculate next version (handle optional 'v' prefix like v1.0.0)
     version_match = re.match(r'v?(\d+)\.(\d+)\.(\d+)', last_tag)
@@ -292,7 +309,7 @@ def main() -> int:
         status, details = check_branch(branch, collection_path)
 
         if status == "NEEDS_RELEASE":
-            print(f"{Colors.GREEN}✅{Colors.RESET} {branch}: {details['current_version']} → {details['next_version']} ({details['impact']})")
+            print(f"{colors.GREEN}✅{colors.RESET} {branch}: {details['current_version']} → {details['next_version']} ({details['impact']})")
             print(f"   Commits: {details['commit_count']}, Fragments: {details['fragment_count']}")
             for frag in details['fragment_details']:
                 print(f"   {frag}")
@@ -300,18 +317,18 @@ def main() -> int:
             release_count += 1
 
         elif status == "UP_TO_DATE":
-            print(f"{Colors.BLUE}✓{Colors.RESET} {branch}: Up to date ({details['current_version']})")
+            print(f"{colors.BLUE}✓{colors.RESET} {branch}: Up to date ({details['current_version']})")
             print()
 
         elif status == "NO_FRAGMENTS":
-            print(f"{Colors.YELLOW}⚠️{Colors.RESET}  {branch}: {details['commit_count']} commits but no changelog fragments")
+            print(f"{colors.YELLOW}⚠️{colors.RESET}  {branch}: {details['commit_count']} commits but no changelog fragments")
             print()
 
         elif status == "ERROR":
-            print(f"{Colors.RED}❌{Colors.RESET} {branch}: {details['message']}")
+            print(f"{colors.RED}❌{colors.RESET} {branch}: {details['message']}")
             print()
 
-    print(f"{Colors.BOLD}{'━' * 50}{Colors.RESET}")
+    print(f"{colors.BOLD}{'━' * 50}{colors.RESET}")
     print(f"Summary: {release_count} release(s) needed")
 
     return 0

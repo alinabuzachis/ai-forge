@@ -20,11 +20,24 @@ from typing import Tuple
 
 
 class Colors:
-    """ANSI color codes for terminal output."""
-    RESET = '\033[0m'
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
+    """ANSI color codes for terminal output. Respects NO_COLOR environment variable."""
+
+    def __init__(self):
+        # Disable colors if NO_COLOR environment variable is set
+        if os.environ.get('NO_COLOR'):
+            self.RESET = ''
+            self.GREEN = ''
+            self.RED = ''
+            self.YELLOW = ''
+        else:
+            self.RESET = '\033[0m'
+            self.GREEN = '\033[92m'
+            self.RED = '\033[91m'
+            self.YELLOW = '\033[93m'
+
+
+# Global Colors instance
+colors = Colors()
 
 
 def run_command(cmd: list, cwd: Path = None, capture: bool = True) -> Tuple[int, str]:
@@ -66,7 +79,7 @@ def setup_collection_repo(collection: str, collections_base: Path, upstream_org:
     """
     # Parse namespace and collection name
     if '.' not in collection:
-        print(f"{Colors.RED}Error: Invalid collection format. Use namespace.name{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.RED}Error: Invalid collection format. Use namespace.name{colors.RESET}", file=sys.stderr)
         print("Example: amazon.aws", file=sys.stderr)
         return False, Path()
 
@@ -100,7 +113,7 @@ def setup_collection_repo(collection: str, collections_base: Path, upstream_org:
         )
 
         if exit_code != 0:
-            print(f"{Colors.RED}Error: Failed to fetch from upstream{Colors.RESET}", file=sys.stderr)
+            print(f"{colors.RED}Error: Failed to fetch from upstream{colors.RESET}", file=sys.stderr)
             return False, collection_path
 
         # Get main branch name
@@ -143,9 +156,9 @@ def setup_collection_repo(collection: str, collections_base: Path, upstream_org:
         )
 
         if exit_code != 0:
-            print(f"{Colors.YELLOW}Warning: Could not pull from upstream/{main_branch}{Colors.RESET}", file=sys.stderr)
+            print(f"{colors.YELLOW}Warning: Could not pull from upstream/{main_branch}{colors.RESET}", file=sys.stderr)
 
-        print(f"{Colors.GREEN}✅ Repository updated{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.GREEN}✅ Repository updated{colors.RESET}", file=sys.stderr)
 
     else:
         print("Repository does not exist, cloning...", file=sys.stderr)
@@ -160,7 +173,7 @@ def setup_collection_repo(collection: str, collections_base: Path, upstream_org:
         )
 
         if exit_code != 0:
-            print(f"{Colors.RED}❌ Failed to clone {upstream_url}{Colors.RESET}", file=sys.stderr)
+            print(f"{colors.RED}❌ Failed to clone {upstream_url}{colors.RESET}", file=sys.stderr)
             print(error, file=sys.stderr)
             return False, collection_path
 
@@ -188,7 +201,7 @@ def setup_collection_repo(collection: str, collections_base: Path, upstream_org:
             if exit_code != 0:
                 print(f"No fork found at {fork_url}", file=sys.stderr)
 
-        print(f"{Colors.GREEN}✅ Repository cloned{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.GREEN}✅ Repository cloned{colors.RESET}", file=sys.stderr)
 
     return True, collection_path
 

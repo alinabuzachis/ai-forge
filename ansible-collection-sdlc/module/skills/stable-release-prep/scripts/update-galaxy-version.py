@@ -9,15 +9,27 @@ Output format:
     CURRENT_VERSION|NEW_VERSION
 """
 
+import os
 import re
 import sys
 from pathlib import Path
 
 
 class Colors:
-    """ANSI color codes for terminal output."""
-    RESET = '\033[0m'
-    RED = '\033[91m'
+    """ANSI color codes for terminal output. Respects NO_COLOR environment variable."""
+
+    def __init__(self):
+        # Disable colors if NO_COLOR environment variable is set
+        if os.environ.get('NO_COLOR'):
+            self.RESET = ''
+            self.RED = ''
+        else:
+            self.RESET = '\033[0m'
+            self.RED = '\033[91m'
+
+
+# Global Colors instance
+colors = Colors()
 
 
 def update_galaxy_version(new_version: str, galaxy_file: Path) -> tuple:
@@ -32,7 +44,7 @@ def update_galaxy_version(new_version: str, galaxy_file: Path) -> tuple:
         Tuple of (current_version, new_version)
     """
     if not galaxy_file.exists():
-        print(f"{Colors.RED}Error: {galaxy_file} not found{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.RED}Error: {galaxy_file} not found{colors.RESET}", file=sys.stderr)
         sys.exit(1)
 
     # Read file
@@ -41,7 +53,7 @@ def update_galaxy_version(new_version: str, galaxy_file: Path) -> tuple:
     # Find current version
     match = re.search(r'^version:\s+(.+)$', content, re.MULTILINE)
     if not match:
-        print(f"{Colors.RED}Error: Could not find version in {galaxy_file}{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.RED}Error: Could not find version in {galaxy_file}{colors.RESET}", file=sys.stderr)
         sys.exit(1)
 
     current_version = match.group(1)
@@ -75,7 +87,7 @@ def main() -> int:
         print(f"{current_version}|{new_version}")
         return 0
     except Exception as e:
-        print(f"{Colors.RED}Error: {e}{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.RED}Error: {e}{colors.RESET}", file=sys.stderr)
         return 1
 
 

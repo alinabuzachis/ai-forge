@@ -6,6 +6,7 @@ Usage:
     ./generate-release-summary.py <collection_path> <version>
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -14,9 +15,20 @@ from typing import List, Set
 
 
 class Colors:
-    """ANSI color codes for terminal output."""
-    RESET = '\033[0m'
-    YELLOW = '\033[93m'
+    """ANSI color codes for terminal output. Respects NO_COLOR environment variable."""
+
+    def __init__(self):
+        # Disable colors if NO_COLOR environment variable is set
+        if os.environ.get('NO_COLOR'):
+            self.RESET = ''
+            self.YELLOW = ''
+        else:
+            self.RESET = '\033[0m'
+            self.YELLOW = '\033[93m'
+
+
+# Global Colors instance
+colors = Colors()
 
 
 def get_modules_from_fragments(fragments_dir: Path) -> List[str]:
@@ -170,7 +182,7 @@ def main() -> int:
     output_file = fragments_dir / f"{version}.yml"
 
     if not fragments_dir.exists():
-        print(f"{Colors.YELLOW}Warning: Fragments directory not found: {fragments_dir}{Colors.RESET}", file=sys.stderr)
+        print(f"{colors.YELLOW}Warning: Fragments directory not found: {fragments_dir}{colors.RESET}", file=sys.stderr)
         # Create minimal summary
         summary = "This release includes maintenance updates and improvements."
     else:

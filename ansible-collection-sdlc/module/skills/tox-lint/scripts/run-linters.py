@@ -2,6 +2,7 @@
 """Run all configured tox linters for Ansible collections."""
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -10,41 +11,57 @@ from typing import Tuple
 
 
 class Colors:
-    """ANSI color codes for terminal output."""
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
+    """ANSI color codes for terminal output. Respects NO_COLOR environment variable."""
+
+    def __init__(self):
+        # Disable colors if NO_COLOR environment variable is set
+        if os.environ.get('NO_COLOR'):
+            self.RESET = ''
+            self.BOLD = ''
+            self.GREEN = ''
+            self.RED = ''
+            self.YELLOW = ''
+            self.BLUE = ''
+            self.CYAN = ''
+        else:
+            self.RESET = '\033[0m'
+            self.BOLD = '\033[1m'
+            self.GREEN = '\033[92m'
+            self.RED = '\033[91m'
+            self.YELLOW = '\033[93m'
+            self.BLUE = '\033[94m'
+            self.CYAN = '\033[96m'
+
+
+# Global Colors instance
+colors = Colors()
 
 
 def print_header(text: str) -> None:
     """Print a formatted header."""
-    print(f"\n{Colors.BOLD}{'━' * 60}{Colors.RESET}")
-    print(f"{Colors.BOLD}{text}{Colors.RESET}")
-    print(f"{Colors.BOLD}{'━' * 60}{Colors.RESET}\n")
+    print(f"\n{colors.BOLD}{'━' * 60}{colors.RESET}")
+    print(f"{colors.BOLD}{text}{colors.RESET}")
+    print(f"{colors.BOLD}{'━' * 60}{colors.RESET}\n")
 
 
 def print_step(step: str, total: int, current: int, message: str) -> None:
     """Print a step in the workflow."""
-    print(f"{Colors.CYAN}[{current}/{total}]{Colors.RESET} {message}...")
+    print(f"{colors.CYAN}[{current}/{total}]{colors.RESET} {message}...")
 
 
 def print_success(message: str) -> None:
     """Print a success message."""
-    print(f"  {Colors.GREEN}✅{Colors.RESET} {message}")
+    print(f"  {colors.GREEN}✅{colors.RESET} {message}")
 
 
 def print_error(message: str) -> None:
     """Print an error message."""
-    print(f"{Colors.RED}❌ Error: {message}{Colors.RESET}", file=sys.stderr)
+    print(f"{colors.RED}❌ Error: {message}{colors.RESET}", file=sys.stderr)
 
 
 def print_warning(message: str) -> None:
     """Print a warning message."""
-    print(f"{Colors.YELLOW}⚠️  {message}{Colors.RESET}")
+    print(f"{colors.YELLOW}⚠️  {message}{colors.RESET}")
 
 
 def setup_venv(collection_path: Path) -> bool:
@@ -198,26 +215,26 @@ def main() -> int:
     success, duration, output = run_linters(collection_path)
 
     print()
-    print(f"{Colors.BOLD}{'━' * 60}{Colors.RESET}")
+    print(f"{colors.BOLD}{'━' * 60}{colors.RESET}")
 
     if success:
-        print(f"{Colors.GREEN}{Colors.BOLD}All linters passed! ✨{Colors.RESET}")
-        print(f"{Colors.BOLD}{'━' * 60}{Colors.RESET}")
+        print(f"{colors.GREEN}{colors.BOLD}All linters passed! ✨{colors.RESET}")
+        print(f"{colors.BOLD}{'━' * 60}{colors.RESET}")
         print(f"Total time: {duration:.1f}s")
         return 0
     else:
-        print(f"{Colors.RED}{Colors.BOLD}Linters failed!{Colors.RESET}")
-        print(f"{Colors.BOLD}{'━' * 60}{Colors.RESET}\n")
+        print(f"{colors.RED}{colors.BOLD}Linters failed!{colors.RESET}")
+        print(f"{colors.BOLD}{'━' * 60}{colors.RESET}\n")
 
         # Check if auto-fixable
         if detect_auto_fixable(output):
             print("Some failures can be auto-fixed:")
-            print(f"  {Colors.CYAN}➤{Colors.RESET} Run: {Colors.BOLD}/lint-fix{Colors.RESET}")
-            print(f"  {Colors.CYAN}➤{Colors.RESET} Then re-run: {Colors.BOLD}/lint{Colors.RESET}")
+            print(f"  {colors.CYAN}➤{colors.RESET} Run: {colors.BOLD}/lint-fix{colors.RESET}")
+            print(f"  {colors.CYAN}➤{colors.RESET} Then re-run: {colors.BOLD}/lint{colors.RESET}")
         else:
             print("Manual fixes required:")
-            print(f"  {Colors.CYAN}➤{Colors.RESET} Review output above")
-            print(f"  {Colors.CYAN}➤{Colors.RESET} Fix issues and re-run: {Colors.BOLD}/lint{Colors.RESET}")
+            print(f"  {colors.CYAN}➤{colors.RESET} Review output above")
+            print(f"  {colors.CYAN}➤{colors.RESET} Fix issues and re-run: {colors.BOLD}/lint{colors.RESET}")
 
         print(f"\nTotal time: {duration:.1f}s")
         return 1
