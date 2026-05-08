@@ -332,6 +332,23 @@ antsibull-changelog generates different list items inconsistently across release
 fixed indentation during a previous release (e.g., 1.0.0), the next release (e.g., 1.1.0) will
 have the same bug. You must check the entire file every time, not just the new release section.
 
+**RECOMMENDATION**: Fix indentation as a **separate commit** before the release PR:
+
+```bash
+# 1. Fix indentation issues FIRST
+ansible-lint --offline changelogs/changelog.yaml
+# (Fix any indentation errors found)
+
+# 2. Commit separately
+git add changelogs/changelog.yaml
+git commit -m "Fix changelog.yaml indentation (antsibull-changelog bug)"
+
+# 3. THEN proceed with release
+# Run antsibull-changelog release, and you'll only see new changes in the diff
+```
+
+This keeps your release PR focused on the actual release changes, not historical indentation fixes.
+
 **Issue 1b: release_summary line too long**
 ansible-lint enforces a 160-character line length limit. If the release_summary exceeds this, break it into multiple lines using YAML's implicit string continuation:
 
@@ -448,8 +465,17 @@ Optional environment variables (read from `~/.ansible-release.conf` if present):
 
 ```bash
 export ANSIBLE_COLLECTIONS_PATH="~/dev/collections/ansible_collections"
+
+# Remote name for canonical repository (default: "upstream")
+# Set to "origin" if you use different remote naming convention  
 export REMOTE_UPSTREAM="upstream"
 ```
+
+**Note on remote naming**: This skill assumes the standard fork-and-pull workflow where:
+- `upstream` = canonical repository (e.g., ansible-collections/amazon.aws)
+- `origin` = your fork
+
+If you use a different convention (e.g., `origin` for canonical, your fork as a different remote), set `REMOTE_UPSTREAM="origin"`.
 
 ## Troubleshooting
 

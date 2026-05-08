@@ -220,8 +220,17 @@ Optional environment variables (read from `~/.ansible-release.conf` if present):
 ```bash
 export ANSIBLE_COLLECTIONS_PATH="~/dev/collections/ansible_collections"
 export UPSTREAM_ORG="ansible-collections"
+
+# Remote name for canonical repository (default: "upstream")
+# Set to "origin" if you use different remote naming convention
 export REMOTE_UPSTREAM="upstream"
 ```
+
+**Note on remote naming**: This skill assumes the standard fork-and-pull workflow where:
+- `upstream` = canonical repository (e.g., ansible-collections/amazon.aws)
+- `origin` = your fork
+
+If you use a different convention (e.g., `origin` for canonical, your fork as a different remote), set `REMOTE_UPSTREAM="origin"`.
 
 ## Troubleshooting
 

@@ -42,12 +42,30 @@ DO NOT TRIGGER when:
 ```bash
 cd /path/to/collection
 
-# Check for lint-labeled environments
-grep -q "labels.*lint" tox.ini && echo "Found lint label"
-
-# Or check for linters environment
-tox -l | grep -q "linters" && echo "Found linters environment"
+# Method 1: Check for lint label using tox itself (most robust)
+if tox -l -m lint 2>/dev/null | grep -q -E '[^[:space:]]+'; then
+    echo "Found lint label"
+    TOX_CMD="tox -m lint"
+# Method 2: Check for linters environment (older pattern)
+elif tox -l 2>/dev/null | grep -qE "^linters$"; then
+    echo "Found linters environment"
+    TOX_CMD="tox -e linters"  
+# Method 3: Check for individual lint environments
+elif tox -l 2>/dev/null | grep -qE "^(black-lint|flake8-lint|pylint)$"; then
+    echo "Found individual lint environments"
+    # Build command from available environments
+    LINT_ENVS=$(tox -l | grep -E "(black|flake8|pylint|isort|ansible)-lint$" | tr '\n' ',' | sed 's/,$//')
+    TOX_CMD="tox -e $LINT_ENVS"
+else
+    echo "Warning: No standard lint configuration found"
+    echo "Please configure tox.ini with a lint label or linters environment"
+fi
 ```
+
+**Note**: Method 1 uses `tox -l -m lint` which asks tox itself to list lint-labeled environments. This is more robust than parsing tox.ini because it works regardless of:
+- Whether labels are on one line or multiple lines
+- Whether labels are in [tox] section or individual [testenv] sections
+- How the tox.ini is formatted
 
 Expected tox.ini configuration:
 
@@ -65,12 +83,16 @@ labels =
 
 ### Step 2: Run Linters
 
-```bash
-# If using labels (modern tox)
-tox -m lint
+Execute the command determined in Step 1:
 
-# Or if using linters environment
-tox -e linters
+```bash
+# Run the detected tox command
+$TOX_CMD
+
+# This will be one of:
+# - tox -m lint           (if labels are configured)
+# - tox -e linters        (if linters environment exists)
+# - tox -e black-lint,... (if individual lint envs found)
 ```
 
 This runs:
