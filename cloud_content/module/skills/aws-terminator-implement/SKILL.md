@@ -18,6 +18,22 @@ After analyzing an Ansible collection PR with `/aws-terminator-analyze`, this sk
 3. Follows aws-terminator patterns and conventions
 4. Creates properly formatted code ready for PR submission
 
+## Quick Start
+
+```bash
+# Implement based on prior analysis (from /aws-terminator-analyze)
+/aws-terminator-implement
+
+# Interactive mode (prompts for each decision)
+/aws-terminator-implement --interactive
+```
+
+**What it does**: Creates terminator class implementations, adds IAM permissions to policy files, runs validation tests, and prepares code for PR submission.
+
+**Prerequisites**: Fork mattclay/aws-terminator, clone your fork, and run `/aws-terminator-analyze` first.
+
+**See full documentation below** for terminator class patterns, IAM permission structure, and validation steps.
+
 ## When to Use
 
 - After running `/aws-terminator-analyze` and reviewing the report
@@ -40,9 +56,11 @@ After analyzing an Ansible collection PR with `/aws-terminator-analyze`, this sk
 
 ## Prerequisites
 
-- aws-terminator repository cloned at `~/dev/aws-terminator`
+- **Fork** of mattclay/aws-terminator repository (fork it on GitHub first)
+- aws-terminator fork cloned at `~/dev/aws-terminator`
 - Analysis completed (from `/aws-terminator-analyze` or manual)
 - Git configured with user credentials
+- `gh` CLI authenticated (for PR creation)
 
 ## Step 1: Setup and Validation
 
@@ -50,8 +68,15 @@ After analyzing an Ansible collection PR with `/aws-terminator-analyze`, this sk
 
 ```bash
 if [ ! -d ~/dev/aws-terminator ]; then
-  echo "Cloning aws-terminator repository..."
-  git clone https://github.com/mattclay/aws-terminator.git ~/dev/aws-terminator
+  echo "Cloning aws-terminator fork..."
+  # Clone from YOUR fork, not mattclay's repo
+  FORK_USER=$(gh api user --jq .login)
+  git clone https://github.com/$FORK_USER/aws-terminator.git ~/dev/aws-terminator
+  
+  cd ~/dev/aws-terminator
+  # Set up upstream remote to mattclay's repo
+  git remote add upstream https://github.com/mattclay/aws-terminator.git
+  git fetch upstream
 fi
 
 cd ~/dev/aws-terminator
@@ -549,6 +574,27 @@ Terminate operation: client.<delete_operation>(<IdParam>=self.id)
 
 Proceed with implementation? [Y/n]:
 ```
+
+## Configuration
+
+Optional environment variables:
+
+```bash
+# Local aws-terminator path (defaults to ~/dev/aws-terminator)
+export AWS_TERMINATOR_PATH="~/custom/path"
+```
+
+If not set, the skill uses `~/dev/aws-terminator` as the default location.
+
+**Fork Setup**:
+
+This skill requires a fork of mattclay/aws-terminator:
+
+1. Fork mattclay/aws-terminator on GitHub to your account
+2. Clone from YOUR fork (detected via `gh api user`)
+3. Upstream remote set to mattclay/aws-terminator
+4. Push changes to origin (your fork)
+5. Create PR from your fork to mattclay/aws-terminator
 
 ## Error Handling
 

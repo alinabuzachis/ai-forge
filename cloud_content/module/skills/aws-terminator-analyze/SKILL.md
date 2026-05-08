@@ -19,6 +19,20 @@ When new AWS modules are added to Ansible collections, the aws-terminator reposi
 
 This skill automates the analysis to identify what's needed.
 
+## Quick Start
+
+```bash
+# Analyze a PR from community.aws
+/aws-terminator-analyze --pr 2353 --repo ansible-collections/community.aws
+
+# Analyze an amazon.aws PR (default repo)
+/aws-terminator-analyze --pr 1234
+```
+
+**What it does**: Fetches the PR, identifies new AWS resource types, checks existing terminator coverage, and generates a report with implementation recommendations.
+
+**See full documentation below** for detailed workflow steps, configuration options, and report format.
+
 ## When to Use
 
 - Analyzing a new module PR in ansible-collections/amazon.aws or community.aws
@@ -137,8 +151,11 @@ gh api repos/<REPO>/pulls/<PR_NUMBER>/files --paginate | \
 Clone or pull latest aws-terminator repo:
 
 ```bash
+# Clone from upstream (mattclay's repo) for read-only analysis
+# For implementation, you'll need your own fork
 cd ~/dev/aws-terminator || git clone https://github.com/mattclay/aws-terminator.git ~/dev/aws-terminator
 cd ~/dev/aws-terminator
+git fetch origin
 git pull origin main
 ```
 
@@ -348,10 +365,11 @@ def terminate(self):
 ### Next Steps
 
 **If no terminator PR exists**:
-1. Create branch in ~/dev/aws-terminator
-2. Use `/aws-terminator-implement` to generate classes and permissions
-3. Test locally with `python cleanup.py --target FooResource -v -c`
-4. Submit PR to mattclay/aws-terminator
+1. Fork mattclay/aws-terminator on GitHub (if not already forked)
+2. Clone your fork to ~/dev/aws-terminator
+3. Use `/aws-terminator-implement` to generate classes and permissions
+4. Test locally with `python cleanup.py --target FooResource -v -c`
+5. Push to your fork and submit PR to mattclay/aws-terminator
 
 **If terminator PR exists but incomplete**:
 1. Checkout PR branch: `gh pr checkout <PR_NUMBER> --repo mattclay/aws-terminator`
@@ -364,7 +382,7 @@ def terminate(self):
 
 ### References
 
-- [AWS Terminator Workflow Memory](~/.claude/projects/.../memory/reference_aws_terminator_workflow.md)
+- aws-terminator repository: https://github.com/mattclay/aws-terminator
 - Ansible Collection PR: https://github.com/<REPO>/pull/<NUMBER>
 - aws-terminator PR: https://github.com/mattclay/aws-terminator/pull/<NUMBER> (if exists)
 
@@ -382,6 +400,19 @@ Present the analysis in a clear, structured format with:
 - IAM permission recommendations
 - Status of existing terminator PR (if referenced)
 - Clear next steps
+
+## Configuration
+
+Optional environment variables:
+
+```bash
+# Local aws-terminator path (defaults to ~/dev/aws-terminator)
+export AWS_TERMINATOR_PATH="~/custom/path"
+```
+
+If not set, the skill uses `~/dev/aws-terminator` as the default location.
+
+**Note**: This skill clones mattclay/aws-terminator for read-only analysis. For implementation, use `/aws-terminator-implement` which requires your fork.
 
 ## Error Handling
 
@@ -419,5 +450,5 @@ No terminator changes needed.
 ## References
 
 - aws-terminator repository: https://github.com/mattclay/aws-terminator
-- AWS Terminator workflow memory: User's memory system
+- Ansible Cloud Content Handbook: https://github.com/ansible-collections/cloud-content-handbook
 - Ansible Collection PRs: GitHub PRs in aws collections
