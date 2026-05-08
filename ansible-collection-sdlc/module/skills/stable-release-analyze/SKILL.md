@@ -227,6 +227,7 @@ export REMOTE_UPSTREAM="upstream"
 ```
 
 **Note on remote naming**: This skill assumes the standard fork-and-pull workflow where:
+
 - `upstream` = canonical repository (e.g., ansible-collections/amazon.aws)
 - `origin` = your fork
 

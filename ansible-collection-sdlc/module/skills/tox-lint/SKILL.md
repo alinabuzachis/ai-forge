@@ -63,6 +63,7 @@ fi
 ```
 
 **Note**: Method 1 uses `tox -l -m lint` which asks tox itself to list lint-labeled environments. This is more robust than parsing tox.ini because it works regardless of:
+
 - Whether labels are on one line or multiple lines
 - Whether labels are in [tox] section or individual [testenv] sections
 - How the tox.ini is formatted
