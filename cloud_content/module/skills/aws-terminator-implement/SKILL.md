@@ -3,6 +3,11 @@ name: aws-terminator-implement
 description: Implement terminator classes and IAM permissions in aws-terminator repository based on analysis
 allowed-tools: Read, Edit, Write, Bash(command:git *), Bash(command:gh *), Bash(command:grep *)
 argument-hint: "[--analysis <file>] [--interactive]"
+triggers:
+  - "implement terminator"
+  - "aws-terminator implement"
+  - "create terminator classes"
+  - "add terminator permissions"
 ---
 
 # AWS Terminator Implement

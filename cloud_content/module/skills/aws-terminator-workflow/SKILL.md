@@ -1,8 +1,13 @@
 ---
 name: aws-terminator-workflow
 description: Complete end-to-end workflow for aws-terminator PR creation - analyze, implement, test, and submit
-allowed-tools: Skill(skill:aws-terminator-analyze), Skill(skill:aws-terminator-implement), Read, Write, Bash(command:git *), Bash(command:gh *), Bash(command:cd *), Bash(command:python3 *)
-argument-hint: "--pr <number> [--repo <owner/repo>] [--auto-pr] [--skip-tests]"
+allowed-tools: Skill(skill:aws-terminator-analyze), Skill(skill:aws-terminator-implement), Read, Write, Bash(command:git *), Bash(command:gh *), Bash(command:python3 *)
+argument-hint: "--pr <number> [--repo <owner/repo>] [--auto-pr] [--skip-tests] [--resume]"
+triggers:
+  - "aws terminator workflow"
+  - "create aws-terminator pr"
+  - "terminator pr for"
+  - "aws-terminator workflow"
 ---
 
 # AWS Terminator Workflow
@@ -59,6 +64,9 @@ When a PR adds new AWS modules to an Ansible collection (amazon.aws, community.a
 
 # Check mode (analyze only, don't implement)
 /aws-terminator-workflow --pr 2353 --check
+
+# Resume from failed/interrupted workflow
+/aws-terminator-workflow --pr 2353 --resume
 ```
 
 ## Workflow Steps
@@ -419,7 +427,7 @@ git commit -m "Add <service> terminators and permissions
 
 Required for ansible-collections/<collection> PR #<PR_NUMBER>
 
-Co-Authored-By: AI Assistant <noreply@example.com>"
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 #### Step 7b: Push to Fork
