@@ -1,6 +1,7 @@
 # Governance
 
-This document describes how the ansible-community/ai-forge repository is managed, who is involved, and how decisions get made. It is a living document that will evolve as the project and community grow.
+This document describes how the ansible-community/ai-forge repository is managed, who is involved, and how decisions get made.
+It is a living document that will evolve as the project and community grow.
 
 ## Roles
 
