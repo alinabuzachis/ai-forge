@@ -497,6 +497,9 @@ Once merged, CI here should pass.
 1. Monitor mattclay/aws-terminator#<TERMINATOR_PR>
 2. Wait for review and merge
 3. CI in ansible collection PR should pass after merge
+
+---
+*Workflow executed by /aws-terminator-workflow --auto-pr*
 ````
 
 ### Deployment (After Merge)
@@ -516,11 +519,6 @@ make test_policy STAGE=prod
 # Deploy lambda (if needed)
 make terminator_lambda
 ```
-
----
-Total time: <N> seconds
-*Workflow executed by /aws-terminator-workflow*
-````
 
 ## Configuration
 
