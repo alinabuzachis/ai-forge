@@ -16,6 +16,7 @@ We want your successful workflows. Contributions are organized into three tiers:
 - [Quality Checklist](#quality-checklist) — What to check before submitting
 - [Testing Locally](#testing-locally) — How to test skills before pushing
 - [Commit Messages](#commit-messages) — Format and attribution requirements
+- [Adding a New Skill](#adding-a-new-skill) — Step-by-step skill creation guide
 - [After PR Submission](#after-pr-submission) — What happens next
 
 ## Prerequisites
