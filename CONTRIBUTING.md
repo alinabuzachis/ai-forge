@@ -23,7 +23,7 @@ We want your successful workflows. Contributions are organized into three tiers:
 
 Before contributing, ensure you have:
 
-- **Lola package manager** installed: `pip install lola-ai`
+- **Lola package manager** installed: `uv tool install lola-ai` (or `pip install lola-ai`)
 - **At least one AI assistant** (Claude Code, Cursor, Gemini CLI, etc.)
 - **Pre-commit hooks** installed (see below)
 - **Git** with user name and email configured
@@ -410,7 +410,7 @@ mkdir -p <module>/module/skills/<skill-name>/
 For example:
 
 ```bash
-mkdir -p ansible-collection-development/module/skills/my-new-skill/
+mkdir -p ansible-collection-sdlc/module/skills/my-new-skill/
 ```
 
 ### Step 2: Create the SKILL.md file
