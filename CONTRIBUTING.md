@@ -394,6 +394,93 @@ Run all pre-commit hooks manually:
 pre-commit run --all-files
 ```
 
+## Adding a New Skill
+
+Skills are AI assistant capabilities that can be invoked by users. Follow these steps to add a new skill:
+
+### Step 1: Create the skill folder
+
+Create a new folder under the appropriate module's skills directory:
+
+```bash
+mkdir -p <module>/module/skills/<skill-name>/
+```
+
+For example:
+
+```bash
+mkdir -p ansible-collection-development/module/skills/my-new-skill/
+```
+
+### Step 2: Create the SKILL.md file
+
+Create a `SKILL.md` file in the skill folder with the required frontmatter:
+
+```markdown
+---
+name: my-new-skill
+description: >-
+  A brief description of what this skill does and when it should be invoked.
+---
+
+# Skill: my-new-skill
+
+## Purpose
+
+Describe the purpose of this skill.
+
+## When to Invoke
+
+TRIGGER when:
+- User asks to...
+- User wants to...
+
+DO NOT TRIGGER when:
+- ...
+
+## Steps
+
+1. First step...
+2. Second step...
+```
+
+**Required frontmatter fields:**
+
+- `name` - The skill identifier (should match the folder name)
+- `description` - A concise description shown in skill listings
+
+### Step 3: Add supporting files (optional)
+
+Add any additional files the skill needs (templates, reference data, etc.) in the same folder.
+
+### Step 4: Update AGENTS.md
+
+Add an entry for your skill in the module's `AGENTS.md` file:
+
+```markdown
+- **my-new-skill skill**: Use the `my-new-skill` skill when you want to...
+  Invoke when the user asks to...
+```
+
+### Step 5: Update the module README
+
+Add your skill to the Components section in the module's `README.md`.
+
+### Making the Skill Available
+
+After adding your skill, users can install it using [Lola](https://lobstertrap.org/lola/):
+
+```bash
+# Register or update the module
+lola mod add https://github.com/ansible-community/ai-forge/<module>
+
+# Install to an AI assistant (project-level)
+lola install <module> -a claude-code
+
+# Or install globally (available in all projects)
+lola install <module> -a claude-code ~
+```
+
 ## Creating New Modules
 
 Want to add a new top-level Lola module? Open a GitHub Issue first to discuss:
