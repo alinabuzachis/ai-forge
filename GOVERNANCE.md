@@ -89,7 +89,7 @@ Skills and commands must be tested before submission:
 
 ### Cross-AI-Assistant Compatibility
 
-This repository uses the [Lola package manager](https://github.com/lola-ai/lola) to ensure skills work across different AI assistants:
+This repository uses the [Lola package manager](https://lobstertrap.org/lola/) to ensure skills work across different AI assistants:
 
 - All skills must work with Lola's packaging format
 - Use standard frontmatter fields (see [SKILL_GUIDELINES.md](SKILL_GUIDELINES.md))

@@ -418,6 +418,6 @@ See [GOVERNANCE.md](GOVERNANCE.md) for project structure and decision-making.
 
 - [Ansible Community Guide](https://docs.ansible.com/ansible/latest/community/index.html)
 - [Red Hat CoP Contributing Guidelines](https://redhat-cop.github.io/contrib/)
-- [Lola Package Manager Documentation](https://github.com/lola-ai/lola)
+- [Lola Package Manager Documentation](https://lobstertrap.org/lola/)
 - [SKILL_GUIDELINES.md](SKILL_GUIDELINES.md) — Detailed skill writing guide
 - [GOVERNANCE.md](GOVERNANCE.md) — Project governance and decision-making
